@@ -2474,7 +2474,7 @@ requires-dist = [
     { name = "matplotlib" },
     { name = "megatron-core", marker = "extra == 'mcore'", editable = "3rdparty/Megatron-LM-workspace" },
     { name = "nemo-tron", marker = "extra == 'mcore'", editable = "3rdparty/NeMo-workspace" },
-    { name = "numpy" },
+    { name = "numpy", specifier = "==1.26.4" },
     { name = "nvidia-ml-py" },
     { name = "nvtx" },
     { name = "omegaconf" },
