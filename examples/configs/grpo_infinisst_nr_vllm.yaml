@@ -1,0 +1,15 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_nr.yaml"
+
+policy:
+  generation:
+    vllm_kwargs:
+      enable_prompt_embeds: false
+
+checkpointing:
+  checkpoint_dir: "results/grpo-infinisst-lcme-nr-vllm"
+
+logger:
+  wandb:
+    project: "grpo-dev"
+    name: "infinisst-lcme-nr-vllm"

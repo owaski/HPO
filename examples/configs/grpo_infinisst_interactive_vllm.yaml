@@ -1,0 +1,27 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_interactive.yaml"
+
+policy:
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_7b_1node/checkpoints/step=2000-last.ckpt.hf"
+  train_global_batch_size: 4
+
+  generation:
+    vllm_kwargs:
+      enable_prompt_embeds: false
+    
+grpo:
+  num_prompts_per_step: 8
+  max_rollout_turns: 60 # Maximum turns allowed per rollout
+  val_at_start: true
+ 
+env:
+  infinisst:
+    cfg:
+      num_gpus: 2
+      
+logger:
+  wandb_enabled: false
+
+cluster:
+  gpus_per_node: 4
+  num_nodes: 1

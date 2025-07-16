@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+python /code/RL/examples/convert_dcp_to_hf.py \
+    --config /code/RL/results/grpo-infinisst-lcme-nr/step_190/config.yaml \
+    --dcp-ckpt-path /code/RL/results/grpo-infinisst-lcme-nr/step_190/policy/weights/ \
+    --hf-ckpt-path /code/RL/results/grpo-infinisst-lcme-nr/step_190/policy/hf/
+"""
+
 import argparse
 
 import yaml

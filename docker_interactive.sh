@@ -1,6 +1,6 @@
 ROOT=/lustre/fs11/portfolios/convai/users/souyang
 
-CONTAINER_PATH=$ROOT/images/nemo_rl.sqsh
+CONTAINER_PATH=$ROOT/images/nemo_rl_npy.sqsh
 CODE_DIR=$ROOT/code
 CKPTS_DIR=$ROOT/ckpts
 DATA_DIR=$ROOT/data
@@ -20,7 +20,7 @@ sbatch \
     --gres=gpu:8 \
     ray.sub
 
-export NRL_VLLM_USE_V1=0
+# export NRL_VLLM_USE_V1=0
 export PYTHONPATH=/code/RL:$PYTHONPATH
 uv run python examples/run_grpo_infinisst.py \
-    --config examples/configs/grpo_infinisst_interactive.yaml
+    --config examples/configs/grpo_infinisst_interactive_vllm.yaml

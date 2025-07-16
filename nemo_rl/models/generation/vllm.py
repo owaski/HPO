@@ -334,7 +334,7 @@ class VllmGenerationWorker:
             tensor_parallel_size=self.tensor_parallel_size,
             pipeline_parallel_size=self.pipeline_parallel_size,
             gpu_memory_utilization=self.gpu_memory_utilization,
-            enable_prefix_caching=False, # disable prefix caching for embedding input
+            enable_prefix_caching=True,
             dtype=self.cfg["vllm_cfg"]["precision"],
             seed=seed,
             # Don't use cuda-graph by default as it leads to convergence issues (see https://github.com/NVIDIA/NeMo-RL/issues/186)
@@ -346,6 +346,12 @@ class VllmGenerationWorker:
             disable_log_stats=True,
             **vllm_kwargs,
         )
+
+        from vllm import ModelRegistry
+        from nemo_rl.models.generation.sqwen2 import SQwen2ForConditionalGeneration
+        ModelRegistry.register_model("SQwen2ForConditionalGeneration", SQwen2ForConditionalGeneration)
+        llm_kwargs["hf_overrides"] = {"architectures": ["SQwen2ForConditionalGeneration"]}
+        self.pathrow2features = {}
 
         if self.cfg["vllm_cfg"]["async_engine"]:
             from vllm.engine.arg_utils import AsyncEngineArgs
@@ -474,35 +480,41 @@ class VllmGenerationWorker:
         # Prepare prompts for vLLM (removing padding)
         prompts = []
 
-        # breakpoint()
-        import time
-        start_time = time.time()
-        pathrow2features = {}
+        from nemo_rl.models.generation.sqwen2 import CHUNK_SIZE, MAX_N_CHUNKS
+        clear_flag = False
         for i in range(batch_size):
             # Use input_lengths to get only valid tokens (not padding)
             valid_length = input_lengths[i].item()
             valid_ids = (
                 input_ids[i, :valid_length] if valid_length > 0 else input_ids[i, :0]
             )
-            # token_ids = valid_ids.tolist()
-            prompt_embeds = self.embedding_layer(valid_ids)
-            mask = valid_ids == self.cfg["audio_token_id"]
+            token_ids = valid_ids.tolist()
+            n_audio_tokens = sum(1 for x in token_ids if x == self.cfg["audio_token_id"])
 
             npy_path, row = data["features"][i][0]
-            if (npy_path, row) not in pathrow2features:
-                pathrow2features[(npy_path, row)] = np.load(npy_path, mmap_mode='r')[row, :mask.sum()].copy()
-            features = torch.from_numpy(pathrow2features[(npy_path, row)])
-            prompt_embeds[mask] = features[:, :prompt_embeds.size(1)]
+            if (npy_path, row) not in self.pathrow2features:
+                self.pathrow2features[(npy_path, row)] = torch.from_numpy(np.load(npy_path, mmap_mode='r')[row].copy())
+            features = self.pathrow2features[(npy_path, row)]
+            audio_embeds = [features[i : i + CHUNK_SIZE] for i in range(0, n_audio_tokens, CHUNK_SIZE)]
+            if n_audio_tokens // CHUNK_SIZE >= MAX_N_CHUNKS:
+                clear_flag = True
 
-            prompts.append({"prompt_embeds": prompt_embeds})
-        end_time = time.time()
-        elapsed = end_time - start_time
-        print(f"VllmGenerationWorker prompt preparation took {elapsed:.4f} seconds")
+            prompts.append(
+                {
+                    "prompt_token_ids": token_ids,
+                    "multi_modal_data": {
+                        "audio": audio_embeds,
+                    }
+                }
+            )
+        if clear_flag:
+            self.pathrow2features.clear()
 
         # Generate outputs
         assert self.llm is not None, (
             "Attempting to generate with either an uninitialized vLLM or non-model-owner"
         )
+        # breakpoint()
         outputs = self.llm.generate(prompts, sampling_params)
 
         # Process the outputs - but preserve the original input padding structure
