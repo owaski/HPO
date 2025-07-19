@@ -53,27 +53,71 @@ class LCME:
         from nemo_rl.environments.games.lcme.wmtAlign import generate_overlap_and_embedding, run_vecalign_explore
         src_tgt_alignmentss = []
         features_to_overlap_emb = {}
-        for idx, instance in enumerate(tqdm(data, desc="Running VecAlign")):
+                
+        # Set batch size for embedding generation
+        embedding_batch_size = 4
+        
+        # First pass: collect unique source texts that need embedding
+        src_texts_to_generate = []
+        src_features_ids = []
+        features_id_to_src_text = {}
+        
+        for idx, instance in enumerate(data):
+            features_id, doc_id = instance["id"].split('_')
+            src_sentences = instance["src_sents"]
+            src_text = "\n".join(src_sentences)
+            
+            if features_id not in features_to_overlap_emb:
+                if features_id not in features_id_to_src_text:
+                    features_id_to_src_text[features_id] = src_text
+                    src_texts_to_generate.append(src_text)
+                    src_features_ids.append(features_id)
+        
+        # Batch generate source embeddings in chunks
+        if src_texts_to_generate:
+            all_src_overlaps = []
+            all_src_embeds = []
+            
+            for i in tqdm(range(0, len(src_texts_to_generate), embedding_batch_size), desc="Generating source embeddings"):
+                batch_texts = src_texts_to_generate[i:i + embedding_batch_size]
+                src_overlaps, src_embeds = generate_overlap_and_embedding(batch_texts, self.model, self.tokenizer, 10)
+                all_src_overlaps.extend(src_overlaps)
+                all_src_embeds.extend(src_embeds)
+            
+            for i, features_id in enumerate(src_features_ids):
+                features_to_overlap_emb[features_id] = (all_src_overlaps[i], all_src_embeds[i])
+        
+        # Second pass: collect target texts that need embedding (non-empty)
+        tgt_texts_to_generate = []        
+        for idx, instance in enumerate(data):
+            tgt_sentences = instance["tgt_sents"]
+            tgt_text = "\n".join(tgt_sentences)
+            tgt_texts_to_generate.append(tgt_text)
+        
+        # Batch generate target embeddings in chunks
+        if tgt_texts_to_generate:
+            all_tgt_overlaps = []
+            all_tgt_embeds = []
+            
+            for i in tqdm(range(0, len(tgt_texts_to_generate), embedding_batch_size), desc="Generating target embeddings"):
+                batch_texts = tgt_texts_to_generate[i:i + embedding_batch_size]
+                tgt_overlaps, tgt_embeds = generate_overlap_and_embedding(batch_texts, self.model, self.tokenizer, 10)
+                all_tgt_overlaps.extend(tgt_overlaps)
+                all_tgt_embeds.extend(tgt_embeds)
+            
+        # Third pass: run vecalign for each instance
+        pbar = tqdm(data, desc="Running VecAlign")
+        for idx, instance in enumerate(pbar):
             tgt_sentences = instance["tgt_sents"]
             src_sentences = instance["src_sents"]
             ref_sentences = instance["ref_sents"]
             features_id, doc_id = instance["id"].split('_')
-
-            if len(tgt_sentences) == 0:
-                src_tgt_alignmentss.append([
-                    ([idx], [])
-                    for idx in range(len(src_sentences))
-                ])
-                continue
             
-            if features_id not in features_to_overlap_emb:
-                src_overlap, src_embed = generate_overlap_and_embedding("\n".join(src_sentences), self.model, self.tokenizer, 10)
-                features_to_overlap_emb[features_id] = (src_overlap, src_embed)
-            else:
-                src_overlap, src_embed = features_to_overlap_emb[features_id]
-            
-            tgt_overlap, tgt_embed = generate_overlap_and_embedding("\n".join(tgt_sentences), self.model, self.tokenizer, 10)
+            # Get embeddings from cache/batch results
+            src_overlap, src_embed = features_to_overlap_emb[features_id]
+            tgt_overlap, tgt_embed = all_tgt_overlaps[idx], all_tgt_embeds[idx]
 
+            # Time alignment
             src_tgt_alignments = run_vecalign_explore(
                 "\n".join(src_sentences), "\n".join(tgt_sentences),
                 src_overlap, tgt_overlap, src_embed, tgt_embed,
@@ -81,6 +125,7 @@ class LCME:
             )
 
             src_tgt_alignmentss.append(src_tgt_alignments)
+        
         return src_tgt_alignmentss
 
 @ray.remote

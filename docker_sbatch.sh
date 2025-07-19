@@ -16,7 +16,7 @@ WANDB_API_KEY=$(cat /home/souyang/.keys/wandb_api_key)
 
 for i in $(seq 1 ${N}); do
     # COMMAND="NRL_VLLM_USE_V1=0 PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
-    COMMAND="PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
+    COMMAND="TOKENIZERS_PARALLELISM=false PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
     MOUNTS="/lustre/fs11:/lustre/fs11,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
     CONTAINER=${CONTAINER_PATH} \
     HF_TOKEN=${HF_TOKEN} \

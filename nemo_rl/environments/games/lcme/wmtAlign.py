@@ -12,11 +12,15 @@ import tempfile
 import subprocess
 import datetime
 import unicodedata
+import time
 from tqdm import tqdm
 from typing import Optional, List, Tuple
 from transformers import AutoTokenizer, AutoModel
 import pickle
 import torch.nn.functional as F
+
+from nemo_rl.environments.games.lcme.dp_utils import yield_overlaps
+
 # -----------------------------------------------------------------------------
 # Utility Functions
 # -----------------------------------------------------------------------------
@@ -87,46 +91,64 @@ def segment_sentences_by_spacy(text: str) -> list:
 #     subprocess.run(" ".join(["$LASER/tasks/embed/embed.sh", input_file, output_file]),
 #                   shell=True, check=True)
 
-def compute_embedding_api(input_file: str, embed_file: str, model=None, tokenizer=None) -> bytes:
+def compute_embedding_api(overlaps: list[list[str]], model=None, tokenizer=None) -> bytes:
     """
     Compute embedding for an input file (e.g. overlaps file). If a transformer model is provided,
     use it; otherwise, use the embed.sh script. Ensures that embed.sh is called via its absolute path.
     """
-    print(f"Computing embedding for {input_file}")
-    if model is not None and tokenizer is not None:        
-        with open(input_file, "r", encoding="utf-8") as f:
-            lines = f.read().strip().splitlines()
+    # print(f"Computing embedding for {input_files}")
+    if model is not None and tokenizer is not None:  
+        
+        # Step 1: Preprocessing
+        lines = [line for overlap in overlaps for line in overlap]
+        n_lines = [len(overlap) for overlap in overlaps]
         if not lines:
             raise ValueError("Input file is empty.")
 
+        # Step 2: Tokenization
         tokens = tokenizer(
             lines,
-            padding="max_length",
-            truncation=True,
-            max_length=512,
+            padding=True,
+            truncation=False,
             add_special_tokens=True,
             return_tensors="pt"
         )
+        
+        # Step 3: Device transfer
         device = next(model.parameters()).device
         tokens = {k: v.to(device) for k, v in tokens.items()}
         
-        with torch.no_grad():
+        # Step 4: Model inference
+        with torch.inference_mode():
             outputs = model(**tokens)
             if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
                 embeddings = outputs.pooler_output
             else:
                 embeddings = outputs.last_hidden_state[:, 0, :]
             
+            # Step 5: Embedding normalization
             normalized_embeddings = F.normalize(embeddings, p=2)
             
+            # Step 6: Dimension adjustment
             expected_dim = getattr(model.config, "hidden_size", 1024)
             if normalized_embeddings.shape[-1] != expected_dim:
                 normalized_embeddings = normalized_embeddings[:, :expected_dim]
-            normalized_embeddings = normalized_embeddings.cpu()
         
-        emb_np = normalized_embeddings.numpy().astype(np.float32)
-        emb_np.tofile(embed_file)
-        print(f"Saved API embedding file (model) for {embed_file}")
+        # Step 7: CPU transfer
+        normalized_embeddings = normalized_embeddings.cpu()
+        
+        # Step 8: Numpy conversion
+        emb_np = normalized_embeddings.float().numpy().astype(np.float32)
+        
+        # Step 9: Split embeddings back to original format
+        start_idx = 0
+        embs = []
+        for n_line in n_lines:
+            end_idx = start_idx + n_line
+            embs.append(emb_np[start_idx:end_idx])
+            start_idx = end_idx
+        
+        return embs
     else:
         LASER_DIR = os.environ.get("LASER")
         if not LASER_DIR:
@@ -137,7 +159,7 @@ def compute_embedding_api(input_file: str, embed_file: str, model=None, tokenize
         subprocess.run(cmd, shell=True, check=True)
         print(f"Saved API embedding file (laser) for {embed_file}")
 
-def generate_overlap_and_embedding(text: str, model=None, tokenizer=None, max_size = 10) -> tuple:
+def generate_overlap_and_embedding(texts: list[str], model=None, tokenizer=None, max_size = 10) -> tuple:
     """
     Generate overlap and embedding data from text using temporary files.
     The embedding computation is extracted to an external function.
@@ -150,37 +172,23 @@ def generate_overlap_and_embedding(text: str, model=None, tokenizer=None, max_si
     Returns:
     tuple: (overlap_content (str), embeddings_content (bytes))
     """
-    with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8", suffix=".txt") as txt_file:
-        txt_file.write(text)
-        txt_file.flush()
-        txt_filename = txt_file.name
-
-    # Define the paths for the overlaps and embedding files
-    overlaps_file = txt_filename + ".overlaps"
-    embed_file = txt_filename + ".emb"
     
-    try:
-        # Generate overlap data
-        subprocess.run(["python", "/code/RL/nemo_rl/environments/games/lcme/overlap.py", "-i", txt_filename, "-o", overlaps_file, "-n", str(max_size)], check=True)
-        # Generate embedding data using the external function
-        compute_embedding_api(overlaps_file, embed_file, model, tokenizer)
-        # Read the contents
-        with open(embed_file, "rb") as f:
-            embeddings_content = f.read()
+    # Generate overlap data
+    overlaps = []
+    for text in texts:
+        lines = text.split('\n')
+        output = set()
+        for out_line in yield_overlaps(lines, max_size):
+            output.add(out_line)
+        output = list(output)
+        output.sort()
+        overlaps.append(output)
 
-        with open(overlaps_file, "r", encoding="utf-8") as f:
-            overlap_content = f.read()
-            
-        return overlap_content, embeddings_content
+    # Generate embedding data using the external function
+    embeddings = compute_embedding_api(overlaps, model, tokenizer)
+    overlaps_content = ['\n'.join(overlap) for overlap in overlaps]
     
-    finally:
-        # Clean up all temporary files
-        for need_to_del_file in [txt_filename, overlaps_file, embed_file]:
-            try:
-                os.remove(need_to_del_file)
-                print(f"Removed file: {need_to_del_file}")
-            except Exception as e:
-                print(f"Error removing {need_to_del_file}: {e}")
+    return overlaps_content, embeddings
 
 
 # -----------------------------------------------------------------------------
@@ -191,9 +199,13 @@ def load_alternative_model(proc_device, alternative_model):
     Load an alternative transformer model for API mode embedding.
     """
     tokenizer = AutoTokenizer.from_pretrained(alternative_model)
-    model = AutoModel.from_pretrained(alternative_model, trust_remote_code=True)
+    model = AutoModel.from_pretrained(
+        alternative_model,
+        trust_remote_code=True,
+        device_map=proc_device,
+        torch_dtype=torch.bfloat16,
+    )
     model = model.eval()
-    model.to(proc_device)
     return tokenizer, model
 
 # -----------------------------------------------------------------------------
