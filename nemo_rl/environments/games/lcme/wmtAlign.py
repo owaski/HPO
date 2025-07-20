@@ -20,6 +20,7 @@ import pickle
 import torch.nn.functional as F
 
 from nemo_rl.environments.games.lcme.dp_utils import yield_overlaps
+from nemo_rl.environments.games.lcme.vecalign import _main as vecalign_main
 
 # -----------------------------------------------------------------------------
 # Utility Functions
@@ -306,7 +307,7 @@ def run_vecalign_explore(src_text: str, tgt_text: str, src_overlap: str, tgt_ove
     best = find_best_alignment(all_results, doc_id="my_doc_id")
     """
     
-    vecalign_folder = "/vecalign_tmp"
+    vecalign_folder = "/tmp/vecalign"
     os.makedirs(vecalign_folder, exist_ok=True)
 
     # Save inputs
@@ -316,6 +317,7 @@ def run_vecalign_explore(src_text: str, tgt_text: str, src_overlap: str, tgt_ove
     tgt_overlap_file_path = os.path.join(vecalign_folder, f"{doc_id}_tgt.overlaps")
     src_embed_file_path = os.path.join(vecalign_folder, f"{doc_id}_src.emb")
     tgt_embed_file_path = os.path.join(vecalign_folder, f"{doc_id}_tgt.emb")
+    vecalign_output_file_path = os.path.join(vecalign_folder, f"{doc_id}_vecalign.txt")
 
     with open(src_file_path, "w+", encoding="utf-8") as f:
         f.write(src_text)
@@ -335,22 +337,19 @@ def run_vecalign_explore(src_text: str, tgt_text: str, src_overlap: str, tgt_ove
     all_results = []
 
     while del_percentile_frac > 0.05 - 1e-6:
-        result = subprocess.run(
-            [
-                "python", 
-                "/code/RL/nemo_rl/environments/games/lcme/vecalign.py",
-                "--alignment_max_size", str(max_size),
-                "--del_percentile_frac", str(del_percentile_frac),
-                "--src", src_file_path,
-                "--tgt", tgt_file_path,
-                "--src_embed", src_overlap_file_path, src_embed_file_path,
-                "--tgt_embed", tgt_overlap_file_path, tgt_embed_file_path,
-            ],
-            stdout=subprocess.PIPE,
-            text=True,
+        vecalign_main(
+            override_args={
+                "alignment_max_size": max_size,
+                "del_percentile_frac": del_percentile_frac,
+                "src": [src_file_path],
+                "tgt": [tgt_file_path],
+                "src_embed": [src_overlap_file_path, src_embed_file_path],
+                "tgt_embed": [tgt_overlap_file_path, tgt_embed_file_path],
+                "output_file": vecalign_output_file_path,
+            },
         )
-
-        output_lines = result.stdout.strip().split("\n")
+        with open(vecalign_output_file_path, "r", encoding="utf-8") as f:
+            output_lines = f.read().strip().split("\n")
         avg_cost, zero_cost_ratio = compute_alignment_stats(output_lines)
 
         # print(f"doc_id: {doc_id} | del_percentile_frac: {del_percentile_frac:.3f} | Avg Cost: {avg_cost:.6f} | Zero-Cost Ratio: {zero_cost_ratio:.2%}")
