@@ -1,0 +1,16 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_nr_vllm_bsz64.yaml"
+
+env:
+  infinisst:
+    cfg:
+      scoring_model_type: "Unbabel/wmt23-cometkiwi-da-xl"
+      scoring_model_path: "/ckpts/llm/wmt23-cometkiwi-da-xl"
+
+checkpointing:
+  checkpoint_dir: "results/grpo-infinisst-lcme-nr-vllm-bsz64-cometkiwi"
+
+logger:
+  wandb:
+    project: "grpo-dev"
+    name: "infinisst-lcme-nr-vllm-bsz64-cometkiwi"

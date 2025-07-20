@@ -135,10 +135,15 @@ class InfiniSSTScorer:
         self.sent_splitter = SENT_SPLITTERS[cfg["tgt_lang"]]
         self.segmenter = LCME(cfg)
 
-        from comet import download_model, load_from_checkpoint
-        model_path = download_model(cfg["scoring_model_type"], saving_directory=cfg["scoring_model_path"])
-        self.scoring_model = load_from_checkpoint(model_path)
-        self.worst_score = 0 if 'comet' in cfg["scoring_model_type"].lower() else -25
+        if 'comet' in cfg["scoring_model_type"].lower():
+            from comet import download_model, load_from_checkpoint
+            model_path = download_model(cfg["scoring_model_type"], saving_directory=cfg["scoring_model_path"])
+            self.scoring_model = load_from_checkpoint(model_path)
+            self.worst_score = 0
+        else:
+            # TODO: MetricX
+            self.worst_score = -25
+            
         self.batch_size = cfg["batch_size"]
         self.granularity = cfg["granularity"]
 

@@ -81,7 +81,7 @@ env:
       scoring_model_path: "/ckpts/llm/xcomet-xl"
       batch_size: 32
       granularity: "whole" # "span", "sentence", "whole"
-      num_gpus: 16
+      num_gpus: 8
       src_lang: ${data.src_lang}
       tgt_lang: ${data.tgt_lang}
       

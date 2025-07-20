@@ -14,11 +14,9 @@ N=3
 HF_TOKEN=$(cat /home/souyang/.keys/hf_token)
 WANDB_API_KEY=$(cat /home/souyang/.keys/wandb_api_key)
 
-JOB_NAME="${CONFIG_NAME}"
-
 for i in $(seq 1 ${N}); do
     # COMMAND="NRL_VLLM_USE_V1=0 PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
-    COMMAND="TOKENIZERS_PARALLELISM=false PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config /code/RL/examples/configs/${CONFIG_NAME}.yaml" \
+    COMMAND="TOKENIZERS_PARALLELISM=false PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
     MOUNTS="/lustre/fs11:/lustre/fs11,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
     CONTAINER=${CONTAINER_PATH} \
     HF_TOKEN=${HF_TOKEN} \
@@ -27,11 +25,9 @@ for i in $(seq 1 ${N}); do
     sbatch \
         --nodes=${NUM_ACTOR_NODES} \
         --account=convai_convaird_nemo-speech \
-        --job-name=${JOB_NAME} \
+        --job-name=grpo-infinisst \
         --partition=batch_block1,batch_block3,batch_block4 \
         --dependency=singleton \
         --time=4:0:0 \
-        --mail-type=ALL \
-        --mail-user=souyang@nvidia.com \
         ray.sub
 done

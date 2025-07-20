@@ -1,0 +1,15 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_nr_vllm.yaml"
+
+env:
+  infinisst:
+    cfg:
+      num_gpus: 8
+
+checkpointing:
+  checkpoint_dir: "results/debug-bf16-run2"
+
+logger:
+  wandb:
+    project: "grpo-dev"
+    name: "debug-bf16-run2"
