@@ -4,8 +4,12 @@ import random
 import re
 from typing import Any, Optional, TypedDict
 
+import json
+import tempfile
+
 import ray
 import torch
+import transformers
 from transformers import AutoTokenizer
 import time
 from tqdm import tqdm
@@ -18,6 +22,7 @@ from nemo_rl.environments.interfaces import (
 )
 from nemo_rl.distributed.ray_actor_environment_registry import get_actor_python_env
 from nemo_rl.distributed.virtual_cluster import PY_EXECUTABLES, RayVirtualCluster
+from nemo_rl.environments.games.metricx24.predict import get_dataset
 
 class InfiniSSTConfig(TypedDict):
     scoring_model_path: str
@@ -141,7 +146,11 @@ class InfiniSSTScorer:
             self.scoring_model = load_from_checkpoint(model_path)
             self.worst_score = 0
         else:
-            # TODO: MetricX
+            from nemo_rl.environments.games.metricx24 import models
+            self.scoring_tokenizer = AutoTokenizer.from_pretrained(cfg["scoring_tokenizer_path"])
+            self.scoring_model = models.MT5ForRegression.from_pretrained(cfg["scoring_model_path"], torch_dtype="auto")
+            self.scoring_model.to("cuda")
+            self.scoring_model.eval()
             self.worst_score = -25
             
         self.batch_size = cfg["batch_size"]
@@ -197,7 +206,33 @@ class InfiniSSTScorer:
                 })
                 instance2data.append(idx)
 
-        scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
+        if 'comet' in self.cfg["scoring_model_type"].lower():
+            scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
+        else:
+            with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8", suffix=".txt") as temp_in:
+                for scorer_datum in scorer_data:
+                    temp_in.write(json.dumps({
+                        "source": scorer_datum["src"],
+                        "reference": scorer_datum["ref"] if not self.cfg["qe"] else "",
+                        "hypothesis": scorer_datum["mt"],
+                    }) + '\n')
+                temp_in.flush()
+                input_filename = temp_in.name
+            breakpoint()
+            dataset = get_dataset(input_filename, self.scoring_tokenizer, 1536, "cuda", self.cfg["qe"])
+            training_args = transformers.TrainingArguments(
+                output_dir=os.path.dirname(input_filename),
+                per_device_eval_batch_size=1,
+                dataloader_pin_memory=False,
+                report_to="none",
+            )
+            trainer = transformers.Trainer(
+                model=self.scoring_model,
+                args=training_args,
+            )
+            scores, _, _ = trainer.predict(test_dataset=dataset["test"])
+            scores = [-float(score) for score in scores]
+
         for i, idx in enumerate(instance2data):
             rewards[idx].append(scores[i])
         

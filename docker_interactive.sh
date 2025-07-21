@@ -7,10 +7,14 @@ DATA_DIR=$ROOT/data
 HF_CACHE_DIR=$ROOT/.cache/huggingface
 
 NUM_ACTOR_NODES=1  # Total nodes requested (head is colocated on ray-worker-0)
+HF_TOKEN=$(cat /home/souyang/.keys/hf_token)
+WANDB_API_KEY=$(cat /home/souyang/.keys/wandb_api_key)
 
 MOUNTS="/lustre/fs11:/lustre/fs11,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
 CONTAINER=${CONTAINER_PATH} \
 HF_DATASETS_CACHE=$HF_CACHE_DIR \
+HF_TOKEN=${HF_TOKEN} \
+WANDB_API_KEY=${WANDB_API_KEY} \
 sbatch \
     --nodes=${NUM_ACTOR_NODES} \
     --account=convai_convaird_nemo-speech \
