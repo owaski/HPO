@@ -265,11 +265,12 @@ def calculate_rewards(
     all_next_stop_strings = []
     all_metadata = []  # Store extracted metadata
     all_indices_order = []
+    all_metrics = {}
 
     for future, result in zip(futures, results):
         indices = future_to_indices[future]
         # Environment step returns: EnvironmentReturn
-        env_observations, metadata, next_stop_strings, task_rewards, terminateds = (
+        env_observations, metadata, next_stop_strings, task_rewards, terminateds, metrics = (
             result
         )
         if next_stop_strings is None:
@@ -283,6 +284,10 @@ def calculate_rewards(
             all_terminateds.append(terminateds[i])
             all_next_stop_strings.append(next_stop_strings[i])
             all_metadata.append(metadata[i])
+            for metric_name, metric_values in metrics.items():
+                if metric_name not in all_metrics:
+                    all_metrics[metric_name] = []
+                all_metrics[metric_name].append(metric_values[i])
 
     # Sort results by original index to maintain order
     sorted_indices = sorted(
@@ -293,6 +298,9 @@ def calculate_rewards(
     terminateds = torch.tensor([all_terminateds[i] for i in sorted_indices])
     next_stop_strings = [all_next_stop_strings[i] for i in sorted_indices]
     metadata = [all_metadata[i] for i in sorted_indices]  # Sort metadata
+    metrics = {}
+    for metric_name, metric_values in all_metrics.items():
+        metrics[metric_name] = [metric_values[i] for i in sorted_indices]
 
     return EnvironmentReturn(
         observations=env_observations,
@@ -300,6 +308,7 @@ def calculate_rewards(
         next_stop_strings=next_stop_strings,
         rewards=rewards,
         terminateds=terminateds,
+        metrics=metrics,
     )
 
 
@@ -344,6 +353,8 @@ def run_multi_turn_rollout(
     sample_terminated = torch.zeros(batch_size, dtype=torch.bool)
     sample_truncated = torch.zeros(batch_size, dtype=torch.bool)
     sample_max_turns_reached = torch.zeros(batch_size, dtype=torch.bool)
+
+    sample_metrics = {}
 
     # Tracking per-turn metrics
     total_gen_tokens_per_turn = []
@@ -399,6 +410,11 @@ def run_multi_turn_rollout(
 
         # Calculate rewards and get environment feedback
         env_output: EnvironmentReturn = calculate_rewards(active_batch, task_to_env)
+
+        for metric_name, metric_values in env_output.metrics.items():
+            if metric_name not in sample_metrics:
+                sample_metrics[metric_name] = torch.zeros(batch_size, dtype=torch.float32)
+            sample_metrics[metric_name][active_indices] = torch.tensor(metric_values, dtype=torch.float32)
 
         total_rewards[active_indices] += env_output.rewards
 
@@ -495,6 +511,12 @@ def run_multi_turn_rollout(
             sample_env_token_counts.float().mean().item()
         ),
     }
+
+    current_batch["metrics"] = sample_metrics
+    for metric_name, metric_values in sample_metrics.items():
+        rollout_metrics[metric_name + '_mean'] = float(metric_values.float().mean().item())
+        rollout_metrics[metric_name + '_std'] = float(metric_values.float().std().item())
+
     return current_batch, rollout_metrics
 
 

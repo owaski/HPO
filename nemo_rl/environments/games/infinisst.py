@@ -218,7 +218,6 @@ class InfiniSSTScorer:
                     }) + '\n')
                 temp_in.flush()
                 input_filename = temp_in.name
-            breakpoint()
             dataset = get_dataset(input_filename, self.scoring_tokenizer, 1536, "cuda", self.cfg["qe"])
             training_args = transformers.TrainingArguments(
                 output_dir=os.path.dirname(input_filename),
@@ -291,7 +290,10 @@ class InfiniSSTEnv(EnvironmentInterface):
         scores = []
         for i in range(len(message_log_batch)):
             scores.append(results[i % n_worker][i // n_worker])
-        return scores
+        metrics = {
+            self.cfg["scoring_model_type"]: scores,
+        }
+        return scores, metrics
 
     def step(
         self, message_log_batch: list[LLMMessageLogType], metadata_batch: list[InfiniSSTMetadata]
@@ -320,10 +322,10 @@ class InfiniSSTEnv(EnvironmentInterface):
             all_next_metadata.append(metadata)        
             
         if metadata_batch[0]['step'] == self.max_turns - 1:
-            rewards = self.compute_reward(message_log_batch, metadata_batch)
+            rewards, metrics = self.compute_reward(message_log_batch, metadata_batch)
             terminateds = [True] * len(message_log_batch)
         else:
-            rewards = [0] * len(message_log_batch)
+            rewards, metrics = [0] * len(message_log_batch), {}
             terminateds = [False] * len(message_log_batch)
 
         end_time = time.time()
@@ -336,6 +338,7 @@ class InfiniSSTEnv(EnvironmentInterface):
             next_stop_strings=all_stop_strings,
             rewards=torch.tensor(rewards, dtype=torch.float32),
             terminateds=torch.tensor(terminateds, dtype=torch.bool),
+            metrics=metrics,
         )
 
     def shutdown(self):

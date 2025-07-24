@@ -820,6 +820,7 @@ def validate(
         print(f"▶ Starting validation at step {step}...")
 
         total_rewards = []
+        total_metrics = {}
         total_lengths = []
         all_message_logs = []  # Collect all message logs
 
@@ -854,6 +855,10 @@ def validate(
                     greedy=False,
                 )
             rewards = val_batch["total_reward"]
+            for metric_name, metric_values in val_batch["metrics"].items():
+                if metric_name not in total_metrics:
+                    total_metrics[metric_name] = []
+                total_metrics[metric_name].extend(metric_values.tolist())
 
             total_rewards.extend(rewards.tolist())
             total_lengths.append(gen_metrics["mean_gen_tokens_per_sample"])
@@ -869,13 +874,15 @@ def validate(
             all_message_logs.extend(to_env)
 
         # Calculate validation metrics
-        accuracy = sum(total_rewards) / len(total_rewards)
+        reward = sum(total_rewards) / len(total_rewards)
         avg_length = sum(total_lengths) / len(total_lengths)
 
         val_metrics = {
-            "accuracy": accuracy,
+            "reward": reward,
             "avg_length": avg_length,
         }
+        for metric_name, metric_values in total_metrics.items():
+            val_metrics[metric_name] = sum(metric_values) / len(metric_values)
 
         # Print sample conversations only once at the end of validation
         try:
@@ -898,7 +905,7 @@ def validate(
 
     # Print summary of validation results
     print("\n📊 Validation Results:")
-    print(f"    • Accuracy: {accuracy:.4f}")
+    print(f"    • Reward: {reward:.4f}")
     print(f"    • Average response length: {avg_length:.1f} tokens")
     print(f"    • Samples processed: {len(total_rewards)}")
 

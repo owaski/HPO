@@ -1,4 +1,4 @@
-ROOT=/lustre/fs11/portfolios/convai/users/souyang
+ROOT=/lustre/fsw/portfolios/llmservice/users/souyang
 
 CONTAINER_PATH=$ROOT/images/nemo_rl_npy.sqsh
 CODE_DIR=$ROOT/code
@@ -7,25 +7,26 @@ DATA_DIR=$ROOT/data
 HF_CACHE_DIR=$ROOT/.cache/huggingface
 
 NUM_ACTOR_NODES=1  # Total nodes requested (head is colocated on ray-worker-0)
-HF_TOKEN=$(cat /home/souyang/.keys/hf_token)
-WANDB_API_KEY=$(cat /home/souyang/.keys/wandb_api_key)
+HF_TOKEN=$(cat $ROOT/.keys/hf_token)
+WANDB_API_KEY=$(cat $ROOT/.keys/wandb_api_key)
 
-MOUNTS="/lustre/fs11:/lustre/fs11,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
+MOUNTS="/lustre/fsw:/lustre/fsw,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
 CONTAINER=${CONTAINER_PATH} \
 HF_DATASETS_CACHE=$HF_CACHE_DIR \
 HF_TOKEN=${HF_TOKEN} \
 WANDB_API_KEY=${WANDB_API_KEY} \
 sbatch \
     --nodes=${NUM_ACTOR_NODES} \
-    --account=convai_convaird_nemo-speech \
+    --account=llmservice_nemo_reasoning \
     --job-name=grpo-dev-infinisst \
     --partition=interactive \
-    --time=2:0:0 \
-    --gres=gpu:8 \
+    --time=4:0:0 \
+    --mail-type=ALL \
+    --mail-user=souyang@nvidia.com \
     ray.sub
 
 # export NRL_VLLM_USE_V1=0
-export PYTHONPATH=/code/RL:$PYTHONPATH
+export PYTHONPATH=/code/RL-dev:$PYTHONPATH
 export TOKENIZERS_PARALLELISM=false
 uv run python examples/run_grpo_infinisst.py \
     --config examples/configs/grpo_infinisst_interactive_vllm.yaml

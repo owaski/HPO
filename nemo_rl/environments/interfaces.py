@@ -34,6 +34,7 @@ class EnvironmentReturn(NamedTuple):
                        similar. This field lets you control this per turn.
     rewards: the rewards for this turn.
     terminateds: whether the episode ended this turn.
+    metrics: metrics for this turn.
     """
 
     observations: list[dict[str, str]]
@@ -41,7 +42,7 @@ class EnvironmentReturn(NamedTuple):
     next_stop_strings: list[list[str] | None] | list[None]
     rewards: Tensor
     terminateds: Tensor
-
+    metrics: list[dict[str, list[float | int]]]
 
 class EnvironmentInterface(abc.ABC):
     @abc.abstractmethod
