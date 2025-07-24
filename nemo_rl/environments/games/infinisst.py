@@ -8,6 +8,7 @@ import json
 import tempfile
 
 import ray
+import numpy as np
 import torch
 import transformers
 from transformers import AutoTokenizer
@@ -46,6 +47,9 @@ SENT_SPLITTERS = {
     "ru": '.,!?',
     "zh": '。，！？',
 }
+
+CHAR_LANGS = set(['zh', 'ja'])
+WORD_LANGS = set(['en', 'de', 'es', 'ru'])
 
 class LCME:
     def __init__(self, cfg: InfiniSSTConfig):
@@ -159,45 +163,63 @@ class InfiniSSTScorer:
     def predict(self, data: list[dict[str, str]]) -> list[float]:
         for instance in data:
             tgt_text = instance["tgt_text"]
+            delays = instance["delays"]
 
             tgt_sentences = []
-            paragraphs = tgt_text.split('\n')
-            for paragraph in paragraphs:
-                if paragraph.strip():
-                    sentences = []
-                    current_sentence = ""
-                    for char in paragraph:
-                        current_sentence += char
-                        if char in self.sent_splitter:
-                            if current_sentence.strip():
-                                sentences.append(current_sentence.strip())
-                            current_sentence = ""
+            tgt_delays = []
+            current_sentence = ""
+            for char in tgt_text.strip():
+                current_sentence += char
+                if char in self.sent_splitter:
                     if current_sentence.strip():
-                        sentences.append(current_sentence.strip())
-                    tgt_sentences.extend(sentences)
-            
+                        current_sentence = current_sentence.strip()
+                        tgt_sentences.append(current_sentence)
+                        units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
+                        tgt_delays.append(delays[:len(units)])
+                        delays = delays[len(units):]
+                    current_sentence = ""
+            if current_sentence.strip():
+                current_sentence = current_sentence.strip()
+                tgt_sentences.append(current_sentence)
+                units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
+                tgt_delays.append(delays[:len(units)])
+                delays = delays[len(units):]
+
             instance["tgt_sents"] = tgt_sentences
+            instance["tgt_delays"] = tgt_delays
 
         src_tgt_alignmentss = self.segmenter.segment(data)
 
         src_sep = '' if self.cfg["src_lang"] in ['zh', 'ja'] else ' '
         tgt_sep = '' if self.cfg["tgt_lang"] in ['zh', 'ja'] else ' '
 
-        rewards = [[] for _ in range(len(data))]
         instance2data = []
         scorer_data = []
+        latency_data = []
+        quality_scores = [[] for _ in range(len(data))]
         for idx, src_tgt_alignments in enumerate(src_tgt_alignmentss):
             src_sentences = data[idx]["src_sents"]
+            src_info = data[idx]["src_info"]
             ref_sentences = data[idx]["ref_sents"]
             tgt_sentences = data[idx]["tgt_sents"]
+            tgt_delays = data[idx]["tgt_delays"]
 
             for src_indices, tgt_indices in src_tgt_alignments:
                 if len(src_indices) == 0 or len(tgt_indices) == 0:
-                    rewards[idx].append(self.worst_score)
+                    quality_scores[idx].append(self.worst_score)
                     continue
                 src_sentence = src_sep.join([src_sentences[i] for i in src_indices])
                 ref_sentence = tgt_sep.join([ref_sentences[i] for i in src_indices])
+                ref_len = sum([len(ref_sentences[i].split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentences[i]) for i in src_indices])
                 tgt_sentence = tgt_sep.join([tgt_sentences[i] for i in tgt_indices])
+                tgt_delay = [delay for i in tgt_indices for delay in tgt_delays[i]]
+
+                latency_data.append({
+                    "src_start": src_info[src_indices[0]]['start'],
+                    "src_end": src_info[src_indices[-1]]['end'],
+                    "ref_len": ref_len,
+                    "delays": tgt_delay,
+                })
 
                 scorer_data.append({
                     "src": src_sentence,
@@ -205,9 +227,24 @@ class InfiniSSTScorer:
                     "mt": tgt_sentence,
                 })
                 instance2data.append(idx)
+        
+        latencies = [[] for _ in range(len(data))]
+        for i, latency_datum in enumerate(latency_data):
+            start = latency_datum["src_start"]
+            end = latency_datum["src_end"]
+            ref_len = latency_datum["ref_len"]
+            delays = latency_datum["delays"]
+
+            step = (end - start) / max(ref_len, len(delays))
+            latency = 0
+            for j in range(len(delays)):
+                latency += delays[j] - step * (j + 1) - start
+            latency /= len(delays)
+            latencies[instance2data[i]].append(latency)
+        mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
 
         if 'comet' in self.cfg["scoring_model_type"].lower():
-            scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
+            scoring_model_scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
         else:
             with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8", suffix=".txt") as temp_in:
                 for scorer_datum in scorer_data:
@@ -229,16 +266,24 @@ class InfiniSSTScorer:
                 model=self.scoring_model,
                 args=training_args,
             )
-            scores, _, _ = trainer.predict(test_dataset=dataset["test"])
-            scores = [-float(score) for score in scores]
+            scoring_model_scores, _, _ = trainer.predict(test_dataset=dataset["test"])
+            scoring_model_scores = [-float(score) for score in scoring_model_scores]
 
         for i, idx in enumerate(instance2data):
-            rewards[idx].append(scores[i])
+            quality_scores[idx].append(scoring_model_scores[i])
         
-        mean_rewards = []
-        for reward_list in rewards:
-            mean_rewards.append(sum(reward_list) / len(reward_list))
-        return mean_rewards
+        mean_quality_scores = []
+        for score_list in quality_scores:
+            mean_quality_scores.append(sum(score_list) / len(score_list))
+
+        scores = [
+            {
+                self.cfg["scoring_model_type"]: quality_score,
+                "latency": latency,
+            }
+            for quality_score, latency in zip(mean_quality_scores, mean_latencies)
+        ]
+        return scores
 
 @ray.remote
 class InfiniSSTEnv(EnvironmentInterface):
@@ -277,12 +322,23 @@ class InfiniSSTEnv(EnvironmentInterface):
         scorer_data = []
         for idx, (message_log, metadata) in enumerate(zip(message_log_batch, metadata_batch)):
             translation = ''.join([msg["content"] for msg in message_log if msg["role"] == "assistant"])
+
+            delays = []
+            n_chunks = 0
+            for msg in message_log:
+                n_chunks += int(msg['role'] == 'user')
+                if msg['role'] == 'assistant' and msg['content'] != '':
+                    units = msg['content'].split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(msg['content'])
+                    delays.extend([n_chunks * self.cfg["step_size"]] * len(units))
+
             features_id = str(abs(hash(f"{message_log[0]['features'][0]}-{message_log[0]['features'][1]}")))
             scorer_data.append({
                 "id": f"{features_id}_{idx}",
                 "src_sents": metadata["src_segments"],
+                "src_info": metadata["segment_info"],
                 "ref_sents": metadata["tgt_segments"],
                 "tgt_text": translation,
+                "delays": delays,
             })
         n_worker = len(self.workers)
         scorer_data_per_worker = [scorer_data[i::n_worker] for i in range(n_worker)]
@@ -290,10 +346,30 @@ class InfiniSSTEnv(EnvironmentInterface):
         scores = []
         for i in range(len(message_log_batch)):
             scores.append(results[i % n_worker][i // n_worker])
+        keys = list(scores[0].keys())
         metrics = {
-            self.cfg["scoring_model_type"]: scores,
+            key: [score[key] for score in scores] for key in keys
         }
-        return scores, metrics
+
+        quality_scores = np.array(metrics[self.cfg["scoring_model_type"]])
+        latencies = np.array(metrics["latency"])
+
+        if self.cfg["normalize"]:
+            mean_quality_scores = quality_scores.mean()
+            std_quality_scores = quality_scores.std()
+            quality_scores = quality_scores - mean_quality_scores
+            if std_quality_scores > 0:
+                quality_scores = quality_scores / std_quality_scores
+
+            mean_latencies = latencies.mean()
+            std_latencies = latencies.std()
+            latencies = latencies - mean_latencies
+            if std_latencies > 0:
+                latencies = latencies / std_latencies
+
+        rewards = self.cfg["gamma"] * quality_scores - latencies
+
+        return rewards, metrics
 
     def step(
         self, message_log_batch: list[LLMMessageLogType], metadata_batch: list[InfiniSSTMetadata]

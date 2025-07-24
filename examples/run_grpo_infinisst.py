@@ -108,7 +108,7 @@ class IterableInfiniSSTDataset(IterableDataset):
             system_prompt_end = torch.nonzero(token_ids == self.tokenizer.eos_token_id)[0]
             message_log[0]['token_ids'] = token_ids[:system_prompt_end + 1]
             message_log[1]['token_ids'] = token_ids[system_prompt_end + 1:]
-
+            
             datum: DatumSpec = {
                 'message_log': message_log,
                 'length': len(token_ids),
@@ -117,6 +117,7 @@ class IterableInfiniSSTDataset(IterableDataset):
                     'chunk_frame_size': data['chunk_frame_size'],
                     'src_segments': data['src_segments'],
                     'tgt_segments': data['tgt_segments'],
+                    'segment_info': data['segment_info'],
                 },
                 'loss_multiplier': 1.0,
                 'idx': i,

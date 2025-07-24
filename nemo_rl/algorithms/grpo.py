@@ -76,6 +76,7 @@ class GRPOConfig(TypedDict):
     num_generations_per_prompt: int
     max_num_steps: int
     max_rollout_turns: int
+    reduce_baseline_rewards: bool
     normalize_rewards: bool
     use_leave_one_out_baseline: bool
     val_period: int
@@ -593,6 +594,7 @@ def grpo_train(
                 rewards = repeated_batch["total_reward"]
 
                 print("▶ Computing advantages...")
+                breakpoint()
                 baseline, std = calculate_baseline_and_std_per_prompt(
                     input_features,
                     rewards,
@@ -601,7 +603,11 @@ def grpo_train(
                         "use_leave_one_out_baseline"
                     ],
                 )
-                advantages = (rewards - baseline).unsqueeze(-1)
+
+                if master_config["grpo"]["reduce_baseline_rewards"]:
+                    advantages = (rewards - baseline).unsqueeze(-1)
+                else:
+                    advantages = rewards.unsqueeze(-1)
 
                 if master_config["grpo"]["normalize_rewards"]:
                     # don't sharpen the ones with no variation

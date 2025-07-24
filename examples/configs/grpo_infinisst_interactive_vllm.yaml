@@ -7,6 +7,8 @@ grpo:
   val_at_start: false
   max_val_samples: 32
   val_batch_size: 32
+  normalize_rewards: false
+  reduce_baseline_rewards: false
 
 policy:
   model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_7b_1node/checkpoints/step=2000-last.ckpt.hf"
@@ -29,5 +31,5 @@ logger:
   wandb_enabled: false
 
 cluster:
-  gpus_per_node: 1
+  gpus_per_node: 4
   num_nodes: 1

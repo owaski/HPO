@@ -6,6 +6,7 @@ grpo:
   num_generations_per_prompt: 16
   max_rollout_turns: 60 # Maximum turns allowed per rollout
   max_num_steps: 10000
+  reduce_baseline_rewards: true
   normalize_rewards: false
   use_leave_one_out_baseline: false
   val_period: 10
@@ -84,6 +85,9 @@ env:
       num_gpus: 8
       src_lang: ${data.src_lang}
       tgt_lang: ${data.tgt_lang}
+      step_size: 1.12
+      gamma: 1.0
+      normalize: true
       
 logger:
   log_dir: "logs"  # Base directory for all logs
