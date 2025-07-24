@@ -145,6 +145,9 @@ def setup_infinisst_data(
     env = InfiniSSTEnv.options(
         runtime_env={
             "env_vars": dict(os.environ),  # Pass thru all user environment variables
+            "py_executable": get_actor_python_env(
+                "nemo_rl.environments.games.infinisst.InfiniSSTEnv"
+            ),
         }
     ).remote(cfg=dict(env_config["cfg"]))
     task_to_env = {task_name: env}

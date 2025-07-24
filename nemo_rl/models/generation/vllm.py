@@ -404,6 +404,16 @@ class VllmGenerationWorker:
                     stop_set.update(sample_ss)
 
         return list(stop_set) if stop_set else None
+    
+    def _merge_bad_words(self, batch_bad_words):
+        bad_words_set: set[str] = set()
+        if self.cfg.get("bad_words"):
+            bad_words_set.update(self.cfg["bad_words"])
+        if batch_bad_words is not None:
+            for sample_ss in batch_bad_words:
+                if sample_ss:
+                    bad_words_set.update(sample_ss)
+        return list(bad_words_set) if bad_words_set else None
 
     def _build_sampling_params(
         self,
@@ -411,6 +421,7 @@ class VllmGenerationWorker:
         greedy: bool,
         stop_strings,
         max_new_tokens: Optional[int] = None,
+        bad_words: Optional[list[str]] = None,
     ):
         top_k_cfg = self.cfg["top_k"]
         top_k_val = 1 if greedy else (top_k_cfg if top_k_cfg is not None else -1)
@@ -430,6 +441,7 @@ class VllmGenerationWorker:
             stop_token_ids=self.cfg["stop_token_ids"],
             stop=stop_strings,
             include_stop_str_in_output=True,
+            bad_words=bad_words,
         )
 
     def generate(
@@ -463,10 +475,13 @@ class VllmGenerationWorker:
         input_ids = data["input_ids"]
         input_lengths = data["input_lengths"]
         batch_stop_strings: list[list[str]] = data.get("stop_strings", [])
+        batch_bad_words: list[list[str]] = data.get("bad_words", [])
         stop_strings = self._merge_stop_strings(batch_stop_strings)
+        bad_words = self._merge_bad_words(batch_bad_words)
         sampling_params = self._build_sampling_params(
             greedy=greedy,
             stop_strings=stop_strings,
+            bad_words=bad_words,
         )
 
         # verify inputs have correct padding

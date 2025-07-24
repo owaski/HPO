@@ -168,22 +168,29 @@ class InfiniSSTScorer:
             tgt_sentences = []
             tgt_delays = []
             current_sentence = ""
-            for char in tgt_text.strip():
-                current_sentence += char
-                if char in self.sent_splitter:
+
+            paragraphs = tgt_text.split('\n')
+            for paragraph in paragraphs:
+                if paragraph.strip():
+                    sentences = []
+                    current_sentence = ""
+                    for char in paragraph:
+                        current_sentence += char
+                        if char in self.sent_splitter:
+                            if current_sentence.strip():
+                                current_sentence = current_sentence.strip()
+                                sentences.append(current_sentence)
+                                units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
+                                tgt_delays.append(delays[:len(units)])
+                                delays = delays[len(units):]
+                            current_sentence = ""
                     if current_sentence.strip():
                         current_sentence = current_sentence.strip()
-                        tgt_sentences.append(current_sentence)
+                        sentences.append(current_sentence)
                         units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
                         tgt_delays.append(delays[:len(units)])
                         delays = delays[len(units):]
-                    current_sentence = ""
-            if current_sentence.strip():
-                current_sentence = current_sentence.strip()
-                tgt_sentences.append(current_sentence)
-                units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
-                tgt_delays.append(delays[:len(units)])
-                delays = delays[len(units):]
+                    tgt_sentences.extend(sentences)
 
             instance["tgt_sents"] = tgt_sentences
             instance["tgt_delays"] = tgt_delays
@@ -196,6 +203,7 @@ class InfiniSSTScorer:
         instance2data = []
         scorer_data = []
         latency_data = []
+        latencies = [[] for _ in range(len(data))]
         quality_scores = [[] for _ in range(len(data))]
         for idx, src_tgt_alignments in enumerate(src_tgt_alignmentss):
             src_sentences = data[idx]["src_sents"]
@@ -206,6 +214,7 @@ class InfiniSSTScorer:
 
             for src_indices, tgt_indices in src_tgt_alignments:
                 if len(src_indices) == 0 or len(tgt_indices) == 0:
+                    latencies[idx].append(self.cfg["max_latency"])
                     quality_scores[idx].append(self.worst_score)
                     continue
                 src_sentence = src_sep.join([src_sentences[i] for i in src_indices])
@@ -228,7 +237,6 @@ class InfiniSSTScorer:
                 })
                 instance2data.append(idx)
         
-        latencies = [[] for _ in range(len(data))]
         for i, latency_datum in enumerate(latency_data):
             start = latency_datum["src_start"]
             end = latency_datum["src_end"]
@@ -299,21 +307,27 @@ class InfiniSSTEnv(EnvironmentInterface):
         placement_groups = self.virtual_cluster.get_placement_groups()
         
         self.workers = []
+        print(f"Creating {cfg['num_gpus']} workers sequentially to avoid environment installation conflicts...")
         for i in range(cfg["num_gpus"]):
+            print(f"Creating worker {i+1}/{cfg['num_gpus']}...")
             pg_index = i % len(placement_groups)
             pg = placement_groups[pg_index]
             worker = InfiniSSTScorer.options(
                 num_gpus=1,
-                runtime_env={
-                    "py_executable": get_actor_python_env(
-                        "nemo_rl.environments.games.infinisst.InfiniSSTEnv"
-                    ),
-                },
                 scheduling_strategy=ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy(
                     placement_group=pg
                 )
             ).remote(cfg)
             self.workers.append(worker)
+            
+            # Wait for the worker to be fully initialized before creating the next one
+            # This ensures sequential environment installation
+            try:
+                ray.get(worker.__ray_ready__.remote(), timeout=300)  # 5 minute timeout
+                print(f"Worker {i+1} initialized successfully")
+            except Exception as e:
+                print(f"Warning: Could not verify worker {i+1} initialization: {e}")
+        print("All workers created successfully")
 
         self.tokenizer = AutoTokenizer.from_pretrained(cfg["model_name"], use_fast=True)
         self.max_turns = cfg["max_turns"]
