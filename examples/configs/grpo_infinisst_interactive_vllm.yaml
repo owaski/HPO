@@ -21,10 +21,15 @@ policy:
 env:
   infinisst:
     cfg:
-      scoring_model_type: "google/metricx-24-hybrid-large-v2p6-bfloat16"
-      scoring_model_path: "/ckpts/llm/metricx-24-hybrid-large-v2p6-bfloat16"
-      scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      # scoring_model_type: "google/metricx-24-hybrid-large-v2p6-bfloat16"
+      # scoring_model_path: "/ckpts/llm/metricx-24-hybrid-large-v2p6-bfloat16"
+      # scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      scoring_model_type: "Unbabel/XCOMET-XL"
+      scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: true
+      gamma: 10.0
+      normalize: true
+      max_latency: 10.0
       num_gpus: 1
       
 logger:

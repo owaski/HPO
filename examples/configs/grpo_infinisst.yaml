@@ -59,6 +59,7 @@ policy:
     stop_token_ids: null
     stop_strings: null
     audio_token_id: 151656
+    bad_words: ["\n"]
     vllm_cfg:
       async_engine: false
       precision: ${policy.precision}
@@ -82,7 +83,6 @@ data:
   seed: 42
   src_lang: "en"
   tgt_lang: "zh"
-  bad_words: ["\n"]
  
 env:
   infinisst:
