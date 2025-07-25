@@ -386,7 +386,7 @@ class InfiniSSTEnv(EnvironmentInterface):
                 if std_latencies > 0:
                     latencies[mask] = latencies[mask] / std_latencies
 
-        rewards = self.cfg["gamma"] * quality_scores - latencies
+        rewards = self.cfg["alpha"] * quality_scores - self.cfg["beta"] * latencies
 
         return rewards, metrics
 
