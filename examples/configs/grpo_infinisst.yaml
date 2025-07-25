@@ -97,7 +97,8 @@ env:
       src_lang: ${data.src_lang}
       tgt_lang: ${data.tgt_lang}
       step_size: 1.12
-      gamma: 1.0
+      alpha: 1.0
+      beta: 0.0
       max_latency: 10.0
       normalize: true
       

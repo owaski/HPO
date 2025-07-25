@@ -8,7 +8,7 @@ grpo:
 
 checkpointing:
   enabled: false
-  checkpoint_dir: "results/debug"
+  checkpoint_dir: "/ckpts/infinisst-rl/debug"
   metric_name: "val_reward"
   higher_is_better: true
   keep_top_k: 3
