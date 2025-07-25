@@ -432,6 +432,22 @@ class VllmGenerationWorker:
             max_new_tokens if max_new_tokens is not None else self.cfg["max_new_tokens"]
         )
 
+        bad_token_ids = []
+        tokenizer = self.llm.get_tokenizer()
+        for bad_word in bad_words:
+            # To prohibit words both at the beginning
+            # and in the middle of text
+            # (related to add_prefix_space tokenizer parameter)
+            for add_prefix_space in [False, True]:
+                prefix = " " if add_prefix_space else ""
+                prompt = prefix + bad_word
+                prompt_token_ids = tokenizer.encode(text=prompt,
+                                                    add_special_tokens=False)
+                assert len(prompt_token_ids) == 1, f"Bad word {bad_word} has multiple token ids: {prompt_token_ids}"
+                bad_token_ids.append(prompt_token_ids[0])
+
+        logit_bias = {bad_token_id: -float('inf') for bad_token_id in bad_token_ids}
+
         return self.SamplingParams(
             temperature=temperature,
             top_p=self.cfg["top_p"],
@@ -441,7 +457,7 @@ class VllmGenerationWorker:
             stop_token_ids=self.cfg["stop_token_ids"],
             stop=stop_strings,
             include_stop_str_in_output=True,
-            bad_words=bad_words,
+            logit_bias=logit_bias,
         )
 
     def generate(

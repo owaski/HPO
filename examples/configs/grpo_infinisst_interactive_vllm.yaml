@@ -2,17 +2,17 @@
 defaults: "grpo_infinisst_interactive.yaml"
 
 grpo:
-  num_prompts_per_step: 2
+  num_prompts_per_step: 8
   max_rollout_turns: 60 # Maximum turns allowed per rollout
   val_at_start: false
-  max_val_samples: 32
-  val_batch_size: 32
+  max_val_samples: 128
+  val_batch_size: 128
   normalize_rewards: false
   reduce_baseline_rewards: false
 
 policy:
   model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_7b_1node/checkpoints/step=2000-last.ckpt.hf"
-  train_global_batch_size: 4
+  train_global_batch_size: 128
 
   generation:
     vllm_kwargs:
@@ -30,7 +30,7 @@ env:
       gamma: 10.0
       normalize: true
       max_latency: 10.0
-      num_gpus: 1
+      num_gpus: 4
       
 logger:
   wandb_enabled: false
