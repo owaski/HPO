@@ -334,6 +334,7 @@ class InfiniSSTEnv(EnvironmentInterface):
 
     def compute_reward(self, message_log_batch: list[LLMMessageLogType], metadata_batch: list[InfiniSSTMetadata]) -> float:
         scorer_data = []
+        features_ids = []
         for idx, (message_log, metadata) in enumerate(zip(message_log_batch, metadata_batch)):
             translation = ''.join([msg["content"] for msg in message_log if msg["role"] == "assistant"])
 
@@ -346,6 +347,7 @@ class InfiniSSTEnv(EnvironmentInterface):
                     delays.extend([n_chunks * self.cfg["step_size"]] * len(units))
 
             features_id = str(abs(hash(f"{message_log[0]['features'][0]}-{message_log[0]['features'][1]}")))
+            features_ids.append(features_id)
             scorer_data.append({
                 "id": f"{features_id}_{idx}",
                 "src_sents": metadata["src_segments"],
@@ -367,19 +369,22 @@ class InfiniSSTEnv(EnvironmentInterface):
 
         quality_scores = np.array(metrics[self.cfg["scoring_model_type"]])
         latencies = np.array(metrics["latency"])
+        features_ids = np.array(features_ids)
 
         if self.cfg["normalize"]:
-            mean_quality_scores = quality_scores.mean()
-            std_quality_scores = quality_scores.std()
-            quality_scores = quality_scores - mean_quality_scores
-            if std_quality_scores > 0:
-                quality_scores = quality_scores / std_quality_scores
+            for features_id in set(features_ids):
+                mask = features_ids == features_id
+                mean_quality_scores = quality_scores[mask].mean()
+                std_quality_scores = quality_scores[mask].std()
+                quality_scores[mask] = quality_scores[mask] - mean_quality_scores
+                if std_quality_scores > 0:
+                    quality_scores[mask] = quality_scores[mask] / std_quality_scores
 
-            mean_latencies = latencies.mean()
-            std_latencies = latencies.std()
-            latencies = latencies - mean_latencies
-            if std_latencies > 0:
-                latencies = latencies / std_latencies
+                mean_latencies = latencies[mask].mean()
+                std_latencies = latencies[mask].std()
+                latencies[mask] = latencies[mask] - mean_latencies
+                if std_latencies > 0:
+                    latencies[mask] = latencies[mask] / std_latencies
 
         rewards = self.cfg["gamma"] * quality_scores - latencies
 
