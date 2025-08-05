@@ -416,7 +416,7 @@ class InfiniSSTEnv(EnvironmentInterface):
             metadata["step"] += 1
             all_next_metadata.append(metadata)        
             
-        if metadata_batch[0]['step'] == self.max_turns - 1:
+        if metadata_batch[0]['step'] == self.max_turns:
             rewards, metrics = self.compute_reward(message_log_batch, metadata_batch)
             terminateds = [True] * len(message_log_batch)
         else:
