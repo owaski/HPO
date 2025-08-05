@@ -2,13 +2,19 @@
 defaults: "grpo_infinisst.yaml"
 
 grpo:
+  num_generations_per_prompt: 32
   reduce_baseline_rewards: false
   normalize_rewards: false
 
+loss_fn:
+  reference_policy_kl_penalty: 0.0
+
 policy:
+  train_global_batch_size: 128
+
   generation:
     top_p: 0.9
-    top_k: 100
+    max_new_tokens: 40
     vllm_kwargs:
       enable_prompt_embeds: false
   
@@ -39,14 +45,14 @@ env:
       scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
       qe: false
       alpha: 1.0
-      beta: 1.0
+      beta: 0.0
       max_latency: 10.0
       normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-nokl"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+    name: "grpo-metricx-laal-explore-nokl"

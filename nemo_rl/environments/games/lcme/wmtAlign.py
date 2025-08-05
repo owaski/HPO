@@ -537,61 +537,6 @@ def clean_lists(primary_list, secondary_list, doc_id):
     secondary_list = [item for index, item in enumerate(secondary_list) if index not in indices_to_remove]
     return primary_list, secondary_list
 
-# -----------------------------------------------------------------------------
-# Document Window Preparation Functions
-# -----------------------------------------------------------------------------
-def prepare_doc_windows(doc, save_folder, tokenizer=None, model=None, max_size=10):
-    """
-    Process a single merged document to prepare alignment windows.
-    """
-    doc_id = doc["doc_id"]
-    src_sentences = doc["src_list"]
-    ref_sentences = doc["ref_list"]
-    src_sentences, ref_sentences = clean_lists(src_sentences, ref_sentences, doc_id)
-    tgt_text = doc["tgt"]
-
-    if SPACY != "spacy":
-        mt_sentences = segment_sentences_by_ersatz(tgt_text)
-    else:
-        mt_sentences = segment_sentences_by_spacy(tgt_text)
-
-    src_overlap, src_embed = generate_overlap_and_embedding("\n".join(src_sentences), model, tokenizer, max_size)
-    mt_overlap, mt_embed = generate_overlap_and_embedding("\n".join(mt_sentences), model, tokenizer, max_size)
-
-    src_mt_alignments = run_vecalign_explore("\n".join(src_sentences), "\n".join(mt_sentences),
-                                             src_overlap, mt_overlap, src_embed, mt_embed,
-                                             doc_id, save_folder, max_size)
-
-    print("src_mt_alignments: ", src_mt_alignments)
-
-    aligned_tuple = []
-    aligned_qe_tuple = []
-    for src_indices, mt_indices in src_mt_alignments:
-        aligned_src = " ".join([src_sentences[i] for i in src_indices]) if src_indices else ""
-        aligned_ref = " ".join([ref_sentences[i] for i in src_indices]) if src_indices else ""
-        aligned_mt = " ".join([mt_sentences[i] for i in mt_indices]) if mt_indices else ""
-        aligned_tuple.append((aligned_src, aligned_ref, aligned_mt))
-        aligned_qe_tuple.append((aligned_src, aligned_mt))
-
-    result_dict = {
-        "doc_id": doc["doc_id"],
-        "sys_id": doc["sys_id"],
-        "src": doc["src"],
-        "tgt": doc["tgt"],
-        "ref": doc["ref"],
-        "ref_aligned": aligned_tuple,
-        "qe_aligned": aligned_qe_tuple
-    }
-
-    if VERBOSE >= 2:
-        individual_folder = os.path.join(save_folder, f"{SPACY}_individual_alignments")
-        os.makedirs(individual_folder, exist_ok=True)
-        individual_file = os.path.join(individual_folder, f"{doc_id}.json")
-        with open(individual_file, "w", encoding="utf-8") as f:
-            json.dump(result_dict, f, ensure_ascii=False, indent=2)
-        print(f"Saved individual alignment for doc_id {doc_id} at {individual_file}")
-
-    return result_dict
 
 def prepare_doc_windows_with_retry(args_tuple):
     """

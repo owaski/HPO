@@ -1,14 +1,8 @@
 # GRPO Algorithm Configuration
-defaults: "grpo_infinisst.yaml"
-
-grpo:
-  reduce_baseline_rewards: false
-  normalize_rewards: false
+defaults: "grpo_infinisst_nr.yaml"
 
 policy:
   generation:
-    top_p: 0.9
-    top_k: 100
     vllm_kwargs:
       enable_prompt_embeds: false
   
@@ -38,15 +32,11 @@ env:
       scoring_model_path: "/ckpts/llm/metricx-24-hybrid-large-v2p6-bfloat16"
       scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
       qe: false
-      alpha: 1.0
-      beta: 1.0
-      max_latency: 10.0
-      normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-lcme-nr-vllm-lr5e-7-const-metricx"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+    name: "grpo-lcme-nr-vllm-lr5e-7-const-metricx"

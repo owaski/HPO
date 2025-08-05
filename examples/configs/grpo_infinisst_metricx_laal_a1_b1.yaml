@@ -44,9 +44,9 @@ env:
       normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-alpha1.0-beta1.0-envnorm1-grponorm0"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-alpha1.0-beta0.0-envnorm1-grponorm0"
+    name: "grpo-metricx-laal-alpha1.0-beta1.0-envnorm1-grponorm0"

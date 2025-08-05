@@ -11,7 +11,7 @@ policy:
   train_global_batch_size: 1024
 
 checkpointing:
-  checkpoint_dir: "results/grpo-infinisst-lcme-nr-vllm-bsz64"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-lcme-nr-vllm-bsz64"
 
 logger:
   wandb:

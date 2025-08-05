@@ -1,0 +1,34 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_nr.yaml"
+
+policy:
+  generation:
+    vllm_kwargs:
+      enable_prompt_embeds: false
+  
+  optimizer:
+    name: "torch.optim.AdamW"
+    kwargs:
+      lr: 5e-7
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+      eps: 1e-8
+      # when using Dtensor, we need to set foreach
+      # and fused to False
+      foreach: False
+      fused: False
+
+  scheduler:
+    - name: "torch.optim.lr_scheduler.ConstantLR"
+      kwargs:
+        factor: 1.0
+        total_iters: 10000000000
+    - milestones: []
+  
+checkpointing:
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-lcme-nr-vllm-lr5e-7-const-run3"
+
+logger:
+  wandb:
+    project: "infinisst-rl"
+    name: "grpo-lcme-nr-vllm-lr5e-7-const-run3"
