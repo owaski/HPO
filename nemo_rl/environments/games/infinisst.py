@@ -51,98 +51,75 @@ SENT_SPLITTERS = {
 CHAR_LANGS = set(['zh', 'ja'])
 WORD_LANGS = set(['en', 'de', 'es', 'ru'])
 
-class LCME:
+class mWERAlign:
     def __init__(self, cfg: InfiniSSTConfig):
-        from nemo_rl.environments.games.lcme.wmtAlign import load_alternative_model
-
         self.cfg = cfg
-        self.tokenizer, self.model = load_alternative_model('cuda', 'BAAI/bge-m3')
+        self.tgt_lang = cfg["tgt_lang"]
 
-    def segment(self, data: list[dict[str, str]]) -> list[str]:
-        from nemo_rl.environments.games.lcme.wmtAlign import generate_overlap_and_embedding, run_vecalign_explore
+    def segment(self, data: list[dict[str, str]]) -> list[list[tuple[list[int], list[int]]]]:
         src_tgt_alignmentss = []
-        features_to_overlap_emb = {}
+        for instance in data:
+            hyp = instance["tgt_text"]
+            ref = instance["ref_sents"]
+            # Write hyp to a temporary file
+            import tempfile
+            import subprocess
+
+            hyp_fd, hyp_path = tempfile.mkstemp(suffix=".txt", text=True)
+            ref_fd, ref_path = tempfile.mkstemp(suffix=".txt", text=True)
+            try:
+                with open(hyp_path, "w", encoding="utf-8") as f_hyp:
+                    f_hyp.write(hyp)
+                with open(ref_path, "w", encoding="utf-8") as f_ref:
+                    if isinstance(ref, list):
+                        f_ref.write("\n".join(ref))
+                    else:
+                        f_ref.write(ref)
+                # You can now use hyp_path and ref_path as needed
+                # (e.g., pass to external tools)
                 
-        # Set batch size for embedding generation
-        embedding_batch_size = 4
-        
-        # First pass: collect unique source texts that need embedding
-        src_texts_to_generate = []
-        src_features_ids = []
-        features_id_to_src_text = {}
-        
-        for idx, instance in enumerate(data):
-            features_id, doc_id = instance["id"].split('_')
-            src_sentences = instance["src_sents"]
-            src_text = "\n".join(src_sentences)
-            
-            if features_id not in features_to_overlap_emb:
-                if features_id not in features_id_to_src_text:
-                    features_id_to_src_text[features_id] = src_text
-                    src_texts_to_generate.append(src_text)
-                    src_features_ids.append(features_id)
-        
-        # Batch generate source embeddings in chunks
-        if src_texts_to_generate:
-            all_src_overlaps = []
-            all_src_embeds = []
-            
-            for i in tqdm(range(0, len(src_texts_to_generate), embedding_batch_size), desc="Generating source embeddings"):
-                batch_texts = src_texts_to_generate[i:i + embedding_batch_size]
-                src_overlaps, src_embeds = generate_overlap_and_embedding(batch_texts, self.model, self.tokenizer, 10)
-                all_src_overlaps.extend(src_overlaps)
-                all_src_embeds.extend(src_embeds)
-            
-            for i, features_id in enumerate(src_features_ids):
-                features_to_overlap_emb[features_id] = (all_src_overlaps[i], all_src_embeds[i])
-        
-        # Second pass: collect target texts that need embedding (non-empty)
-        tgt_texts_to_generate = []        
-        for idx, instance in enumerate(data):
-            tgt_sentences = instance["tgt_sents"]
-            tgt_text = "\n".join(tgt_sentences)
-            tgt_texts_to_generate.append(tgt_text)
-        
-        # Batch generate target embeddings in chunks
-        if tgt_texts_to_generate:
-            all_tgt_overlaps = []
-            all_tgt_embeds = []
-            
-            for i in tqdm(range(0, len(tgt_texts_to_generate), embedding_batch_size), desc="Generating target embeddings"):
-                batch_texts = tgt_texts_to_generate[i:i + embedding_batch_size]
-                tgt_overlaps, tgt_embeds = generate_overlap_and_embedding(batch_texts, self.model, self.tokenizer, 10)
-                all_tgt_overlaps.extend(tgt_overlaps)
-                all_tgt_embeds.extend(tgt_embeds)
-            
-        # Third pass: run vecalign for each instance
-        pbar = tqdm(data, desc="Running VecAlign")
-        for idx, instance in enumerate(pbar):
-            tgt_sentences = instance["tgt_sents"]
-            src_sentences = instance["src_sents"]
-            ref_sentences = instance["ref_sents"]
-            features_id, doc_id = instance["id"].split('_')
-            
-            # Get embeddings from cache/batch results
-            src_overlap, src_embed = features_to_overlap_emb[features_id]
-            tgt_overlap, tgt_embed = all_tgt_overlaps[idx], all_tgt_embeds[idx]
 
-            # Time alignment
-            src_tgt_alignments = run_vecalign_explore(
-                "\n".join(src_sentences), "\n".join(tgt_sentences),
-                src_overlap, tgt_overlap, src_embed, tgt_embed,
-                doc_id, 10
-            )
+            # Call mweralign with the specified arguments
+            # -r ref.txt -t hyp.txt -o aligned.txt -m cj -l zh
+                aligned_fd, aligned_path = tempfile.mkstemp(suffix=".txt", text=True)
+                os.close(aligned_fd)  # We'll just use the path
 
-            src_tgt_alignmentss.append(src_tgt_alignments)
-        
+                subprocess.run(
+                    [
+                        "mweralign",
+                        "-r", ref_path,
+                        "-t", hyp_path,
+                        "-o", aligned_path,
+                        "-l", self.tgt_lang
+                    ] + (["-m", "cj"] if self.tgt_lang in CHAR_LANGS else []),
+                    check=True
+                )
+
+                # Optionally, read the aligned output if needed
+                with open(aligned_path, "r", encoding="utf-8") as f_aligned:
+                    aligned_content = f_aligned.read()
+                # You can process aligned_content as needed
+                hyp_segments = aligned_content.split('\n')[:len(ref)]
+
+                src_tgt_alignmentss.append(hyp_segments)
+
+            finally:
+                os.close(hyp_fd)
+                os.close(ref_fd)
+                os.remove(hyp_path)
+                os.remove(ref_path)
+                os.remove(aligned_path)
+
         return src_tgt_alignmentss
+
 
 @ray.remote
 class InfiniSSTScorer:
     def __init__(self, cfg: InfiniSSTConfig):
         self.cfg = cfg
         self.sent_splitter = SENT_SPLITTERS[cfg["tgt_lang"]]
-        self.segmenter = LCME(cfg)
+
+        self.segmenter = mWERAlign(cfg)
 
         if 'comet' in cfg["scoring_model_type"].lower():
             from comet import download_model, load_from_checkpoint
@@ -161,44 +138,8 @@ class InfiniSSTScorer:
         self.granularity = cfg["granularity"]
 
     def predict(self, data: list[dict[str, str]]) -> list[float]:
-        for instance in data:
-            tgt_text = instance["tgt_text"]
-            delays = instance["delays"]
-
-            tgt_sentences = []
-            tgt_delays = []
-            current_sentence = ""
-
-            paragraphs = tgt_text.split('\n')
-            for paragraph in paragraphs:
-                if paragraph.strip():
-                    sentences = []
-                    current_sentence = ""
-                    for char in paragraph:
-                        current_sentence += char
-                        if char in self.sent_splitter:
-                            if current_sentence.strip():
-                                current_sentence = current_sentence.strip()
-                                sentences.append(current_sentence)
-                                units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
-                                tgt_delays.append(delays[:len(units)])
-                                delays = delays[len(units):]
-                            current_sentence = ""
-                    if current_sentence.strip():
-                        current_sentence = current_sentence.strip()
-                        sentences.append(current_sentence)
-                        units = current_sentence.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(current_sentence)
-                        tgt_delays.append(delays[:len(units)])
-                        delays = delays[len(units):]
-                    tgt_sentences.extend(sentences)
-
-            instance["tgt_sents"] = tgt_sentences
-            instance["tgt_delays"] = tgt_delays
-
+        breakpoint()
         src_tgt_alignmentss = self.segmenter.segment(data)
-
-        src_sep = '' if self.cfg["src_lang"] in ['zh', 'ja'] else ' '
-        tgt_sep = '' if self.cfg["tgt_lang"] in ['zh', 'ja'] else ' '
 
         instance2data = []
         scorer_data = []
@@ -209,31 +150,34 @@ class InfiniSSTScorer:
             src_sentences = data[idx]["src_sents"]
             src_info = data[idx]["src_info"]
             ref_sentences = data[idx]["ref_sents"]
-            tgt_sentences = data[idx]["tgt_sents"]
-            tgt_delays = data[idx]["tgt_delays"]
 
-            for src_indices, tgt_indices in src_tgt_alignments:
-                if len(src_indices) == 0 or len(tgt_indices) == 0:
+            delays = data[idx]["delays"]
+            segment_delays = []
+            for tgt_segment in src_tgt_alignments:
+                units = tgt_segment.split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(tgt_segment)
+                segment_delays.append(delays[:len(units)])
+                delays = delays[len(units):]
+
+            for segment_idx, (tgt_segment, segment_delay) in enumerate(zip(src_tgt_alignments, segment_delays)):
+                if tgt_segment.strip() == "":
                     latencies[idx].append(self.cfg["max_latency"])
                     quality_scores[idx].append(self.worst_score)
                     continue
-                src_sentence = src_sep.join([src_sentences[i] for i in src_indices])
-                ref_sentence = tgt_sep.join([ref_sentences[i] for i in src_indices])
-                ref_len = sum([len(ref_sentences[i].split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentences[i]) for i in src_indices])
-                tgt_sentence = tgt_sep.join([tgt_sentences[i] for i in tgt_indices])
-                tgt_delay = [delay for i in tgt_indices for delay in tgt_delays[i]]
+                src_sentence = src_sentences[segment_idx]
+                ref_sentence = ref_sentences[segment_idx]
+                ref_len = len(ref_sentence.split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentence)
 
                 latency_data.append({
-                    "src_start": src_info[src_indices[0]]['start'],
-                    "src_end": src_info[src_indices[-1]]['end'],
+                    "src_start": src_info[segment_idx]['start'],
+                    "src_end": src_info[segment_idx]['end'],
                     "ref_len": ref_len,
-                    "delays": tgt_delay,
+                    "delays": segment_delay,
                 })
 
                 scorer_data.append({
                     "src": src_sentence,
                     "ref": ref_sentence,
-                    "mt": tgt_sentence,
+                    "mt": tgt_segment,
                 })
                 instance2data.append(idx)
         

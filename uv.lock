@@ -2327,6 +2327,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mweralign"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sentencepiece" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/82/1a205eb5aa3753b22b4b2a62d371f3b7cbb81b15130674ef44369fa99abf/mweralign-1.0.1.tar.gz", hash = "sha256:41a9f34cc706a68e83aab7fcf874d2142758466aebb90be7833100324704d5a1", size = 31380, upload-time = "2025-07-30T15:44:59.629Z" }
+
+[[package]]
 name = "mypy"
 version = "1.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2419,6 +2428,7 @@ dependencies = [
 [package.optional-dependencies]
 infinisst = [
     { name = "cython-npm" },
+    { name = "mweralign" },
     { name = "unbabel-comet" },
 ]
 mcore = [
@@ -2473,6 +2483,7 @@ requires-dist = [
     { name = "math-verify" },
     { name = "matplotlib" },
     { name = "megatron-core", marker = "extra == 'mcore'", editable = "3rdparty/Megatron-LM-workspace" },
+    { name = "mweralign", marker = "extra == 'infinisst'" },
     { name = "nemo-tron", marker = "extra == 'mcore'", editable = "3rdparty/NeMo-workspace" },
     { name = "numpy", specifier = "==1.26.4" },
     { name = "nvidia-ml-py" },
