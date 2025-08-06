@@ -520,7 +520,8 @@ class DTensorPolicyWorker:
                                     pathrow2features[(npy_path, row)] = np.load(npy_path, mmap_mode='r')[row, :mask.sum()].copy()
 
                                 features = torch.from_numpy(pathrow2features[(npy_path, row)]).to(dtype=self.dtype, device=input_ids.device)
-                                embeds[mask] = features[:, :embeds.size(1)]
+                                mask = mask & (mask.long().cumsum(dim=0) <= features.size(0))
+                                embeds[mask] = features
                                 inputs_embeds.append(embeds)
                             inputs_embeds = torch.stack(inputs_embeds, dim=0)
                             
@@ -739,7 +740,8 @@ class DTensorPolicyWorker:
                             pathrow2features[(npy_path, row)] = np.load(npy_path, mmap_mode='r')[row, :mask.sum()].copy()
 
                         features = torch.from_numpy(pathrow2features[(npy_path, row)]).to(dtype=self.dtype, device=input_ids.device)
-                        embeds[mask] = features[:, :embeds.size(1)]
+                        mask = mask & (mask.long().cumsum(dim=0) <= features.size(0))
+                        embeds[mask] = features
                         inputs_embeds.append(embeds)
                     inputs_embeds = torch.stack(inputs_embeds, dim=0)
 
