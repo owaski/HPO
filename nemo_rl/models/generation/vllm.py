@@ -552,11 +552,12 @@ class VllmGenerationWorker:
             from vllm.sequence import Logprob
             eos_token = self.llm.get_tokenizer().eos_token
             eos_token_id = self.llm.get_tokenizer().eos_token_id
+            epsilon = self.cfg.get("epsilon", 0.0)
             for output in outputs:
-                if np.random.random() < self.cfg["epsilon"]:
+                if np.random.random() < epsilon:
                     output.outputs[0].token_ids = [eos_token_id]
                     output.outputs[0].logprobs = [
-                        {eos_token_id: Logprob(logprob=np.log(self.cfg["epsilon"]), rank=1, decoded_token=eos_token)}
+                        {eos_token_id: Logprob(logprob=np.log(epsilon), rank=1, decoded_token=eos_token)}
                     ]
 
         # Process the outputs - but preserve the original input padding structure
