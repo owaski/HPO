@@ -71,16 +71,13 @@ class mWERAlign:
                 with open(hyp_path, "w", encoding="utf-8") as f_hyp:
                     f_hyp.write(hyp)
                 with open(ref_path, "w", encoding="utf-8") as f_ref:
-                    if isinstance(ref, list):
-                        f_ref.write("\n".join(ref))
-                    else:
-                        f_ref.write(ref)
+                    f_ref.write("\n".join(ref))
                 # You can now use hyp_path and ref_path as needed
                 # (e.g., pass to external tools)
                 
 
-            # Call mweralign with the specified arguments
-            # -r ref.txt -t hyp.txt -o aligned.txt -m cj -l zh
+                # Call mweralign with the specified arguments
+                # -r ref.txt -t hyp.txt -o aligned.txt -m cj -l zh
                 aligned_fd, aligned_path = tempfile.mkstemp(suffix=".txt", text=True)
                 os.close(aligned_fd)  # We'll just use the path
 
@@ -138,7 +135,6 @@ class InfiniSSTScorer:
         self.granularity = cfg["granularity"]
 
     def predict(self, data: list[dict[str, str]]) -> list[float]:
-        breakpoint()
         src_tgt_alignmentss = self.segmenter.segment(data)
 
         instance2data = []
