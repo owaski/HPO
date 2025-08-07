@@ -11,30 +11,39 @@ grpo:
   reduce_baseline_rewards: false
 
 policy:
-  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_7b_1node/checkpoints/step=2000-last.ckpt.hf"
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_4node/checkpoints/step=2000.ckpt.hf"
   train_global_batch_size: 128
 
   generation:
     vllm_kwargs:
       enable_prompt_embeds: false
+
+data:
+  train_data_file: "/data/asr/yodas/npy_4b/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"
+  val_data_file: "/data/asr/yodas/npy_4b/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en_dev/manifest.parquet"
+  train_data_shuffle: true
+  val_data_shuffle: false
+  seed: 42
+  src_lang: "en"
+  tgt_lang: "zh"
  
 env:
   infinisst:
     cfg:
-      # scoring_model_type: "google/metricx-24-hybrid-large-v2p6-bfloat16"
-      # scoring_model_path: "/ckpts/llm/metricx-24-hybrid-large-v2p6-bfloat16"
-      # scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
-      scoring_model_type: "Unbabel/XCOMET-XL"
-      scoring_model_path: "/ckpts/llm/xcomet-xl"
+      scoring_model_type: "google/metricx-24-hybrid-large-v2p6-bfloat16"
+      scoring_model_path: "/ckpts/llm/metricx-24-hybrid-large-v2p6-bfloat16"
+      scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      # scoring_model_type: "Unbabel/XCOMET-XL"
+      # scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: true
       gamma: 10.0
       normalize: true
       max_latency: 10.0
-      num_gpus: 4
+      num_gpus: 1
       
 logger:
   wandb_enabled: false
 
 cluster:
-  gpus_per_node: 4
+  gpus_per_node: 1
   num_nodes: 1
