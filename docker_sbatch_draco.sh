@@ -6,7 +6,7 @@ CKPTS_DIR=$ROOT/ckpts
 DATA_DIR=$ROOT/data
 HF_CACHE_DIR=$ROOT/.cache/huggingface
 
-NUM_ACTOR_NODES=5  # Total nodes requested (head is colocated on ray-worker-0)
+NUM_ACTOR_NODES=3  # Total nodes requested (head is colocated on ray-worker-0)
 
 CONFIG_NAME=$1
 N=5

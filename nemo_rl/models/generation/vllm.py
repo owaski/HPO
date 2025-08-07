@@ -174,6 +174,7 @@ class VllmGenerationWorker:
         self.model_name = self.cfg["model_name"]
         transformers_model = AutoModelForCausalLM.from_pretrained(self.model_name)
         self.embedding_layer = transformers_model.get_input_embeddings()
+        self.vocab_size = self.embedding_layer.weight.shape[0]
         del transformers_model
         gc.collect()
 
@@ -348,9 +349,9 @@ class VllmGenerationWorker:
         )
 
         from vllm import ModelRegistry
-        from nemo_rl.models.generation.sqwen3 import SQwen3ForConditionalGeneration
-        ModelRegistry.register_model("SQwen3ForConditionalGeneration", SQwen3ForConditionalGeneration)
-        llm_kwargs["hf_overrides"] = {"architectures": ["SQwen3ForConditionalGeneration"]}
+        from nemo_rl.models.generation.sqwen2 import SQwen2ForConditionalGeneration
+        ModelRegistry.register_model("SQwen2ForConditionalGeneration", SQwen2ForConditionalGeneration)
+        llm_kwargs["hf_overrides"] = {"architectures": ["SQwen2ForConditionalGeneration"]}
         self.pathrow2features = {}
 
         if self.cfg["vllm_cfg"]["async_engine"]:
@@ -422,6 +423,7 @@ class VllmGenerationWorker:
         stop_strings,
         max_new_tokens: Optional[int] = None,
         bad_words: Optional[list[str]] = None,
+        max_token_id: Optional[int] = -1,
     ):
         top_k_cfg = self.cfg["top_k"]
         top_k_val = 1 if greedy else (top_k_cfg if top_k_cfg is not None else -1)
@@ -447,6 +449,10 @@ class VllmGenerationWorker:
                 bad_token_ids.append(prompt_token_ids[0])
 
         logit_bias = {bad_token_id: -float('inf') for bad_token_id in bad_token_ids}
+        
+        if max_token_id != -1:
+            for i in range(max_token_id + 1, self.vocab_size):
+                logit_bias[i] = -float('inf')
 
         return self.SamplingParams(
             temperature=temperature,
@@ -494,10 +500,12 @@ class VllmGenerationWorker:
         batch_bad_words: list[list[str]] = data.get("bad_words", [])
         stop_strings = self._merge_stop_strings(batch_stop_strings)
         bad_words = self._merge_bad_words(batch_bad_words)
+        max_token_id = self.cfg.get("max_token_id", -1)
         sampling_params = self._build_sampling_params(
             greedy=greedy,
             stop_strings=stop_strings,
             bad_words=bad_words,
+            max_token_id=max_token_id,
         )
 
         # verify inputs have correct padding
