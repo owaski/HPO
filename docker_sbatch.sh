@@ -26,7 +26,7 @@ for i in $(seq 1 ${N}); do
     WANDB_API_KEY=${WANDB_API_KEY} \
     sbatch \
         --nodes=${NUM_ACTOR_NODES} \
-        --account=llmservice_nemo_speechlm \
+        --account=llmservice_nemo_reasoning \
         --job-name=${JOB_NAME} \
         --partition=batch \
         --dependency=singleton \

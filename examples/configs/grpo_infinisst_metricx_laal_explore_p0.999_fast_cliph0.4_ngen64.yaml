@@ -2,7 +2,7 @@
 defaults: "grpo_infinisst.yaml"
 
 grpo:
-  num_generations_per_prompt: 16
+  num_generations_per_prompt: 64
   reduce_baseline_rewards: false
   normalize_rewards: false
 
@@ -53,9 +53,9 @@ env:
       normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-p0.999-fast-cliph0.4"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-p0.999-fast-cliph0.4-ngen64"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-explore-p0.999-fast-cliph0.4"
+    name: "grpo-metricx-laal-explore-p0.999-fast-cliph0.4-ngen64"

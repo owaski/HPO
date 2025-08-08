@@ -15,6 +15,7 @@ policy:
     max_new_tokens: 40
     vllm_kwargs:
       enable_prompt_embeds: false
+    epsilon: 0.1
   
   optimizer:
     name: "torch.optim.AdamW"
@@ -48,9 +49,9 @@ env:
       normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-p0.999-fast"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-7b-p0.999-eps0.1"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-explore-p0.999-fast"
+    name: "grpo-metricx-7b-p0.999-eps0.1"

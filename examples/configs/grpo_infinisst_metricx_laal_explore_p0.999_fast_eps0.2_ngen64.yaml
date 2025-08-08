@@ -2,7 +2,7 @@
 defaults: "grpo_infinisst.yaml"
 
 grpo:
-  num_generations_per_prompt: 16
+  num_generations_per_prompt: 64
   reduce_baseline_rewards: false
   normalize_rewards: false
 
@@ -15,7 +15,7 @@ policy:
     max_new_tokens: 40
     vllm_kwargs:
       enable_prompt_embeds: false
-    epsilon: 0.1
+    epsilon: 0.2
   
   optimizer:
     name: "torch.optim.AdamW"
@@ -49,9 +49,9 @@ env:
       normalize: true
   
 checkpointing:
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-p0.999-fast-eps0.1"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-laal-explore-p0.999-fast-eps0.2-ngen64"
 
 logger:
   wandb:
     project: "infinisst-rl"
-    name: "grpo-metricx-laal-explore-p0.999-fast-eps0.1"
+    name: "grpo-metricx-laal-explore-p0.999-fast-eps0.2-ngen64"
