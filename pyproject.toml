@@ -64,6 +64,9 @@ infinisst = [
     "cython-npm",
 ]
 
+[project.entry-points."vllm.general_plugins"]
+register_model = "nemo_rl.vllm_plugins:register"
+
 [dependency-groups]
 
 # This is a default group so that we install these even with bare `uv sync`

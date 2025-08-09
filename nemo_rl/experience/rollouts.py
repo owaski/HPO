@@ -19,6 +19,7 @@ import asyncio
 import copy
 from typing import Any
 from tqdm import tqdm
+import numpy as np
 
 import ray
 import torch
@@ -558,6 +559,7 @@ async def async_generate_response_for_sample_turn(
             "input_ids": flat_messages["token_ids"],
             "input_lengths": input_lengths,
             "stop_strings": [sample_stop_strings],
+            "features": flat_messages["features"],
         }
     )
 
@@ -634,6 +636,7 @@ async def run_sample_multi_turn_rollout(
     # Track per-turn metrics
     turn_gen_tokens = []
 
+    sample_metrics = {}
     for turn in range(max_rollout_turns):
         if terminated or truncated:
             break
@@ -731,7 +734,7 @@ async def run_sample_multi_turn_rollout(
     }
 
     # Sample metrics
-    sample_metrics = {
+    sample_metrics.update({
         "turn_count": turn_count,
         "total_tokens": token_count,
         "assistant_tokens": assistant_token_count,
@@ -741,7 +744,7 @@ async def run_sample_multi_turn_rollout(
         "max_turns_reached": max_turns_reached,
         "total_reward": total_reward,
         "turn_gen_tokens": turn_gen_tokens,
-    }
+    })
 
     return final_sample_state, sample_metrics
 
@@ -849,6 +852,13 @@ def run_async_multi_turn_rollout(
             if key not in final_batch:
                 final_batch[key] = input_batch[key]
 
+        env_output = calculate_rewards(final_batch, task_to_env)
+        final_batch["metrics"] = {}
+        for metric_name, metric_values in env_output.metrics.items():
+            if metric_name not in final_batch["metrics"]:
+                final_batch["metrics"][metric_name] = torch.zeros(batch_size, dtype=torch.float32)
+            final_batch["metrics"][metric_name] = torch.tensor(metric_values, dtype=torch.float32)
+
         # Aggregate metrics across all samples
         rollout_metrics = {
             # Overall metrics
@@ -883,6 +893,10 @@ def run_async_multi_turn_rollout(
             "max_total_reward": max(m["total_reward"] for m in all_sample_metrics),
             "min_total_reward": min(m["total_reward"] for m in all_sample_metrics),
         }
+
+        for key in final_batch["metrics"]:
+            rollout_metrics[key + '_mean'] = final_batch["metrics"][key].mean().item()
+            rollout_metrics[key + '_std'] = final_batch["metrics"][key].std().item()
 
         return final_batch, rollout_metrics
 

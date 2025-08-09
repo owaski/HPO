@@ -393,7 +393,6 @@ class InfiniSSTEnv(EnvironmentInterface):
     def step(
         self, message_log_batch: list[LLMMessageLogType], metadata_batch: list[InfiniSSTMetadata]
     ) -> EnvironmentReturn:
-        start_time = time.time()
         observations = []
         rewards = []
         terminateds = []
@@ -418,16 +417,13 @@ class InfiniSSTEnv(EnvironmentInterface):
             metadata["step"] += 1
             all_next_metadata.append(metadata)
             
-        if metadata_batch[0]['step'] == self.max_turns:
+        if metadata_batch[0]['step'] > self.max_turns:
+            breakpoint()
             rewards, metrics = self.compute_reward(message_log_batch, metadata_batch)
             terminateds = [True] * len(message_log_batch)
         else:
             rewards, metrics = [0] * len(message_log_batch), {}
             terminateds = [False] * len(message_log_batch)
-
-        end_time = time.time()
-        elapsed = end_time - start_time
-        print(f"InfiniSSTEnv.step took {elapsed:.4f} seconds")
 
         return EnvironmentReturn(
             observations=observations,
