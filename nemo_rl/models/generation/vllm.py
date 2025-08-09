@@ -356,7 +356,6 @@ class VllmGenerationWorker:
             llm_kwargs["hf_overrides"] = {"architectures": ["SQwen3ForConditionalGeneration"]}
         else:
             raise ValueError(f"Model {self.model_name} not supported")
-        self.pathrow2features = {}
 
         if self.cfg["vllm_cfg"]["async_engine"]:
             from vllm.engine.arg_utils import AsyncEngineArgs
@@ -365,6 +364,9 @@ class VllmGenerationWorker:
             self.llm = AsyncLLM.from_engine_args(AsyncEngineArgs(**llm_kwargs))
         else:
             self.llm = vllm.LLM(**llm_kwargs)
+        
+        self.pathrow2features = {}
+        self.pathrow2features_lock = asyncio.Lock()
 
     def init_collective(self, data: int, ip: str, port: int, world_size: int) -> None:
         self.llm.collective_rpc(
@@ -700,7 +702,12 @@ class VllmGenerationWorker:
 
             n_audio_tokens = sum(1 for x in prompt_token_ids_list if x == self.cfg["audio_token_id"])
             npy_path, row = data["features"][sample_idx][0]
-            features = torch.from_numpy(np.load(npy_path, mmap_mode='r')[row].copy())
+            async with self.pathrow2features_lock:
+                if len(self.pathrow2features) > 1024:
+                    self.pathrow2features.clear()
+                if (npy_path, row) not in self.pathrow2features: # TODO: pop after this is too large
+                    self.pathrow2features[(npy_path, row)] = torch.from_numpy(np.load(npy_path, mmap_mode='r')[row].copy())
+                features = self.pathrow2features[(npy_path, row)]
             audio_embeds = [features[i : i + CHUNK_SIZE] for i in range(0, n_audio_tokens, CHUNK_SIZE)]
 
             prompt = {"prompt_token_ids": prompt_token_ids_list, "multi_modal_data": {"audio": audio_embeds}}
