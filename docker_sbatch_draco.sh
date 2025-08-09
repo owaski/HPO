@@ -9,7 +9,7 @@ HF_CACHE_DIR=$ROOT/.cache/huggingface
 NUM_ACTOR_NODES=3  # Total nodes requested (head is colocated on ray-worker-0)
 
 CONFIG_NAME=$1
-N=5
+N=10
 
 HF_TOKEN=$(cat /home/souyang/.keys/hf_token)
 WANDB_API_KEY=$(cat /home/souyang/.keys/wandb_api_key)

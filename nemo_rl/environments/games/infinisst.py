@@ -400,21 +400,23 @@ class InfiniSSTEnv(EnvironmentInterface):
         all_stop_strings = []
         all_next_metadata = []
 
+        start_token_id = self.tokenizer.encode("<|im_start|>")[0]
         for metadata in metadata_batch:
             chunk_frame_size = metadata["chunk_frame_size"]
             content = "<|video_pad|>" * chunk_frame_size
-            content = self.tokenizer.decode(
-                self.tokenizer.apply_chat_template( 
-                    [{"role": "user", "content": content}],
-                    add_generation_prompt=True,
-                    add_special_tokens=False,
-                )[20:], # remove system prompt from qwen2.5
+            content = self.tokenizer.apply_chat_template( 
+                [{"role": "user", "content": content}],
+                add_generation_prompt=True,
+                add_special_tokens=False,
             )
+            if sum(token_id == start_token_id for token_id in content) == 3:
+                content = content[20:] # remove system prompt from qwen2.5
+            content = self.tokenizer.decode(content)
             observations.append({"role": "user", "content": content})
 
             all_stop_strings.append(None)
             metadata["step"] += 1
-            all_next_metadata.append(metadata)        
+            all_next_metadata.append(metadata)
             
         if metadata_batch[0]['step'] == self.max_turns:
             rewards, metrics = self.compute_reward(message_log_batch, metadata_batch)

@@ -349,9 +349,16 @@ class VllmGenerationWorker:
         )
 
         from vllm import ModelRegistry
-        from nemo_rl.models.generation.sqwen2 import SQwen2ForConditionalGeneration
-        ModelRegistry.register_model("SQwen2ForConditionalGeneration", SQwen2ForConditionalGeneration)
-        llm_kwargs["hf_overrides"] = {"architectures": ["SQwen2ForConditionalGeneration"]}
+        if '3b' in self.model_name or '7b' in self.model_name:
+            from nemo_rl.models.generation.sqwen2 import SQwen2ForConditionalGeneration
+            ModelRegistry.register_model("SQwen2ForConditionalGeneration", SQwen2ForConditionalGeneration)
+            llm_kwargs["hf_overrides"] = {"architectures": ["SQwen2ForConditionalGeneration"]}
+        elif '4b' in self.model_name:
+            from nemo_rl.models.generation.sqwen3 import SQwen3ForConditionalGeneration
+            ModelRegistry.register_model("SQwen3ForConditionalGeneration", SQwen3ForConditionalGeneration)
+            llm_kwargs["hf_overrides"] = {"architectures": ["SQwen3ForConditionalGeneration"]}
+        else:
+            raise ValueError(f"Model {self.model_name} not supported")
         self.pathrow2features = {}
 
         if self.cfg["vllm_cfg"]["async_engine"]:
