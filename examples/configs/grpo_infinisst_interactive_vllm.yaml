@@ -2,9 +2,9 @@
 defaults: "grpo_infinisst_interactive.yaml"
 
 grpo:
-  num_prompts_per_step: 2
+  num_prompts_per_step: 8
   max_rollout_turns: 60 # Maximum turns allowed per rollout
-  val_at_start: true
+  val_at_start: false
   max_val_samples: 128
   val_batch_size: 128
   normalize_rewards: false
@@ -12,17 +12,14 @@ grpo:
 
 policy:
   model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_7b_1node/checkpoints/step=2000-last.ckpt.hf"
-  train_global_batch_size: 32
+  train_global_batch_size: 128
 
   generation:
     top_p: 0.999
     top_k: 10000
     max_new_tokens: 40
     vllm_kwargs:
-      max_num_batched_tokens: 32768
       enable_prompt_embeds: false
-    vllm_cfg:
-      async_engine: true
 
 data:
   train_data_file: "/data/asr/yodas/npy/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"

@@ -37,7 +37,7 @@ import ray
 import torch
 from ray.util.placement_group import PlacementGroup
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM
 
 from nemo_rl.distributed.batched_data_dict import BatchedDataDict, SlicedDataDict
 from nemo_rl.distributed.named_sharding import NamedSharding
@@ -172,7 +172,6 @@ class VllmGenerationWorker:
         self.cfg = config
 
         self.model_name = self.cfg["model_name"]
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         transformers_model = AutoModelForCausalLM.from_pretrained(self.model_name)
         self.embedding_layer = transformers_model.get_input_embeddings()
         self.vocab_size = self.embedding_layer.weight.shape[0]
@@ -351,8 +350,12 @@ class VllmGenerationWorker:
 
         from vllm import ModelRegistry
         if '3b' in self.model_name or '7b' in self.model_name:
+            from nemo_rl.models.generation.sqwen2 import SQwen2ForConditionalGeneration
+            ModelRegistry.register_model("SQwen2ForConditionalGeneration", SQwen2ForConditionalGeneration)
             llm_kwargs["hf_overrides"] = {"architectures": ["SQwen2ForConditionalGeneration"]}
         elif '4b' in self.model_name:
+            from nemo_rl.models.generation.sqwen3 import SQwen3ForConditionalGeneration
+            ModelRegistry.register_model("SQwen3ForConditionalGeneration", SQwen3ForConditionalGeneration)
             llm_kwargs["hf_overrides"] = {"architectures": ["SQwen3ForConditionalGeneration"]}
         else:
             raise ValueError(f"Model {self.model_name} not supported")
@@ -441,19 +444,18 @@ class VllmGenerationWorker:
         )
 
         bad_token_ids = []
-        tokenizer = self.tokenizer
-        if bad_words is not None:
-            for bad_word in bad_words:
-                # To prohibit words both at the beginning
-                # and in the middle of text
-                # (related to add_prefix_space tokenizer parameter)
-                for add_prefix_space in [False, True]:
-                    prefix = " " if add_prefix_space else ""
-                    prompt = prefix + bad_word
-                    prompt_token_ids = tokenizer.encode(text=prompt,
-                                                        add_special_tokens=False)
-                    assert len(prompt_token_ids) == 1, f"Bad word {bad_word} has multiple token ids: {prompt_token_ids}"
-                    bad_token_ids.append(prompt_token_ids[0])
+        tokenizer = self.llm.get_tokenizer()
+        for bad_word in bad_words:
+            # To prohibit words both at the beginning
+            # and in the middle of text
+            # (related to add_prefix_space tokenizer parameter)
+            for add_prefix_space in [False, True]:
+                prefix = " " if add_prefix_space else ""
+                prompt = prefix + bad_word
+                prompt_token_ids = tokenizer.encode(text=prompt,
+                                                    add_special_tokens=False)
+                assert len(prompt_token_ids) == 1, f"Bad word {bad_word} has multiple token ids: {prompt_token_ids}"
+                bad_token_ids.append(prompt_token_ids[0])
 
         logit_bias = {bad_token_id: -float('inf') for bad_token_id in bad_token_ids}
         
@@ -697,20 +699,7 @@ class VllmGenerationWorker:
                 if current_input_actual_length > 0
                 else []
             )
-
-            from nemo_rl.models.generation.sqwen2 import CHUNK_SIZE, MAX_N_CHUNKS
-
-            n_audio_tokens = sum(1 for x in prompt_token_ids_list if x == self.cfg["audio_token_id"])
-            npy_path, row = data["features"][sample_idx][0]
-            async with self.pathrow2features_lock:
-                if len(self.pathrow2features) > 1024:
-                    self.pathrow2features.clear()
-                if (npy_path, row) not in self.pathrow2features: # TODO: pop after this is too large
-                    self.pathrow2features[(npy_path, row)] = torch.from_numpy(np.load(npy_path, mmap_mode='r')[row].copy())
-                features = self.pathrow2features[(npy_path, row)]
-            audio_embeds = [features[i : i + CHUNK_SIZE] for i in range(0, n_audio_tokens, CHUNK_SIZE)]
-
-            prompt = {"prompt_token_ids": prompt_token_ids_list, "multi_modal_data": {"audio": audio_embeds}}
+            prompt = {"prompt_token_ids": prompt_token_ids_list}
 
             per_sample_stop_strings = None
             if batch_specific_stop_strings_list and sample_idx < len(
@@ -768,7 +757,6 @@ class VllmGenerationWorker:
                 greedy=greedy,
                 stop_strings=final_stop_strings_for_sample,
                 max_new_tokens=allowed_new_tokens,
-                bad_words=self.cfg.get("bad_words", None),
             )
 
             request_id = str(uuid.uuid4())
