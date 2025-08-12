@@ -51,6 +51,23 @@ SENT_SPLITTERS = {
 CHAR_LANGS = set(['zh', 'ja'])
 WORD_LANGS = set(['en', 'de', 'es', 'ru'])
 
+SYSTEM_PROMPT = "You are a professional translation evaluator."
+TEMPLATE = """Your task is to assess whether a translation segment successfully conveys the semantic content of the original speech according to the following criteria:
+
+1. Key Information Recognition: Identify whether the key information in the source (e.g., proper nouns, keywords, terminologies, or sentence structures) is present in the translation.
+2. Correctness Assessment: Determine whether the translation accurately conveys the speaker’s intention, without misinterpretation or contextual errors.
+3. Expressiveness Assessment: Evaluate whether the translation is fluent, clear, and intuitive to human readers. It should avoid unnecessary verbosity, ambiguous phrases, or awkward grammar.
+
+Given a source sentence and its translation, answer "Yes" if the translation meets all three criteria and answer "No" otherwise. Only output the answer, no other text.
+
+<begin_of_source>
+{}
+<end_of_source>
+
+<begin_of_translation>
+{}
+<end_of_translation>
+"""
 class LCME:
     def __init__(self, cfg: InfiniSSTConfig):
         from nemo_rl.environments.games.lcme.wmtAlign import load_alternative_model
@@ -149,13 +166,27 @@ class InfiniSSTScorer:
             model_path = download_model(cfg["scoring_model_type"], saving_directory=cfg["scoring_model_path"])
             self.scoring_model = load_from_checkpoint(model_path)
             self.worst_score = 0
-        else:
+        elif 'metricx' in cfg["scoring_model_type"].lower():
             from nemo_rl.environments.games.metricx24 import models
             self.scoring_tokenizer = AutoTokenizer.from_pretrained(cfg["scoring_tokenizer_path"])
             self.scoring_model = models.MT5ForRegression.from_pretrained(cfg["scoring_model_path"], torch_dtype="auto")
             self.scoring_model.to("cuda")
             self.scoring_model.eval()
             self.worst_score = -25
+        elif 'vip' in cfg["scoring_model_type"].lower():
+            from vllm import LLM, SamplingParams
+            self.sampling_params = SamplingParams(
+                temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_tokens=16384, n=self.cfg["scoring_model_samples"],
+            )
+            self.llm = LLM(
+                model=cfg["scoring_model_path"],
+                max_model_len=16384,
+                gpu_memory_utilization=0.80,
+                enforce_eager=True,
+            )
+            self.worst_score = 0.0
+        else:
+            raise ValueError(f"Invalid scoring model type: {cfg['scoring_model_type']}")
             
         self.batch_size = cfg["batch_size"]
         self.granularity = cfg["granularity"]
@@ -253,7 +284,7 @@ class InfiniSSTScorer:
 
         if 'comet' in self.cfg["scoring_model_type"].lower():
             scoring_model_scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
-        else:
+        elif 'metricx' in self.cfg["scoring_model_type"].lower():
             with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8", suffix=".txt") as temp_in:
                 for scorer_datum in scorer_data:
                     temp_in.write(json.dumps({
@@ -276,7 +307,34 @@ class InfiniSSTScorer:
             )
             scoring_model_scores, _, _ = trainer.predict(test_dataset=dataset["test"])
             scoring_model_scores = [-float(score) for score in scoring_model_scores]
-
+        elif 'vip' in self.cfg["scoring_model_type"].lower():
+            scoring_model_scores = []
+            messages = []
+            for scorer_datum in scorer_data:
+                prompt = TEMPLATE.format(scorer_datum["src"], scorer_datum["mt"])
+                message = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]
+                messages.append(message)
+            outputs = self.llm.chat(
+                messages,
+                sampling_params=self.sampling_params,
+                chat_template_kwargs={"enable_thinking": True},
+            )
+            for output in outputs:
+                n_yes = 0
+                n_no = 0
+                n_other = 0
+                for o in output.outputs:
+                    think_end_pos = o.text.find("</think>")
+                    if think_end_pos == -1:
+                        continue
+                    answer = o.text[think_end_pos + len("</think>"):].strip()
+                    n_yes += "Yes" in answer
+                    n_no += "No" in answer
+                    n_other += "Yes" not in answer and "No" not in answer
+                scoring_model_scores.append(float(n_yes > n_no))
+        else:
+            raise ValueError(f"Invalid scoring model type: {self.cfg['scoring_model_type']}")
+        
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
         

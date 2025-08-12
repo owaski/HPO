@@ -753,10 +753,13 @@ class VllmGenerationWorker:
 
                 return (sample_idx, result_batch)
 
+            max_token_id = self.cfg.get("max_token_id", -1)
             sampling_params_for_request = self._build_sampling_params(
                 greedy=greedy,
                 stop_strings=final_stop_strings_for_sample,
                 max_new_tokens=allowed_new_tokens,
+                bad_words=self.cfg.get("bad_words", None),
+                max_token_id=max_token_id,
             )
 
             request_id = str(uuid.uuid4())
