@@ -717,7 +717,8 @@ def grpo_train(
                 policy.prepare_for_training()
 
                 grpo_save_state["step"] = step + 1
-                grpo_save_state["val_reward"] = val_metrics["reward"]
+                for metric_name, metric_value in val_metrics.items():
+                    grpo_save_state["val_" + metric_name] = metric_value
                 grpo_save_state["consumed_samples"] = consumed_samples
                 with timer.time("checkpointing"):
                     print(f"Saving checkpoint for step {step + 1}...")
