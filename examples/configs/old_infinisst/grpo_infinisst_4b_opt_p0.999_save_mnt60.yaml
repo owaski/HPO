@@ -1,0 +1,80 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst.yaml"
+
+grpo:
+  num_generations_per_prompt: 16
+  reduce_baseline_rewards: false
+  normalize_rewards: false
+
+policy:
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_4node/checkpoints/step=2000-last.ckpt.hf"
+  train_global_batch_size: 128
+  train_micro_batch_size: 1
+  logprob_batch_size: 4
+  max_total_sequence_length: 5120
+
+  dtensor_cfg:
+    tensor_parallel_size: 1
+
+  generation:
+    top_p: 0.999
+    top_k: 10000
+    max_new_tokens: 60
+    max_token_id: 151645
+    vllm_kwargs:
+      enable_prompt_embeds: false
+  
+  optimizer:
+    name: "torch.optim.AdamW"
+    kwargs:
+      lr: 1e-6
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+      eps: 1e-8
+      # when using Dtensor, we need to set foreach
+      # and fused to False
+      foreach: False
+      fused: False
+
+  scheduler:
+    - name: "torch.optim.lr_scheduler.ConstantLR"
+      kwargs:
+        factor: 1.0
+        total_iters: 10000000000
+    - milestones: []
+
+data:
+  train_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"
+  val_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en_dev/manifest.parquet"
+  train_data_shuffle: true
+  val_data_shuffle: false
+  seed: 42
+  src_lang: "en"
+  tgt_lang: "zh"
+
+env:
+  infinisst:
+    cfg:
+      scoring_model_type: "google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      scoring_model_path: "/ckpts/llm/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      qe: false
+      alpha: 1.0
+      beta: 0.0
+      max_latency: 10.0
+      normalize: true
+      num_gpus: 8
+  
+checkpointing:
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-4b-opt-p0.999-save-mnt60"
+  metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+  higher_is_better: true
+
+logger:
+  wandb:
+    project: "infinisst-rl"
+    name: "grpo-metricx-4b-opt-p0.999-save-mnt60"
+
+cluster:
+  gpus_per_node: 8
+  num_nodes: 2

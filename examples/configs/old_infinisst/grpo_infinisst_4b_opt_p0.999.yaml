@@ -66,6 +66,8 @@ env:
   
 checkpointing:
   checkpoint_dir: "/ckpts/infinisst-rl/grpo-metricx-4b-opt-p0.999"
+  metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+  higher_is_better: true
 
 logger:
   wandb:
