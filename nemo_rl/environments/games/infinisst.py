@@ -176,11 +176,11 @@ class InfiniSSTScorer:
         elif 'vip' in cfg["scoring_model_type"].lower():
             from vllm import LLM, SamplingParams
             self.sampling_params = SamplingParams(
-                temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_tokens=16384, n=self.cfg["scoring_model_samples"],
+                temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_tokens=1024, n=self.cfg["scoring_model_samples"],
             )
             self.llm = LLM(
                 model=cfg["scoring_model_path"],
-                max_model_len=16384,
+                max_model_len=1024,
                 gpu_memory_utilization=0.80,
                 enforce_eager=True,
             )
