@@ -29,7 +29,6 @@ class InfiniSSTConfig(TypedDict):
     scoring_model_path: str
     scoring_model_type: str
     batch_size: int
-    granularity: str
     max_turns: int
     src_lang: str
     tgt_lang: str
@@ -189,7 +188,6 @@ class InfiniSSTScorer:
             raise ValueError(f"Invalid scoring model type: {cfg['scoring_model_type']}")
             
         self.batch_size = cfg["batch_size"]
-        self.granularity = cfg["granularity"]
 
     def predict(self, data: list[dict[str, str]]) -> list[float]:
         for instance in data:

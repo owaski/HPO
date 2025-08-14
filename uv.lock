@@ -2420,6 +2420,7 @@ dependencies = [
 infinisst = [
     { name = "cython-npm" },
     { name = "unbabel-comet" },
+    { name = "vllm" },
 ]
 mcore = [
     { name = "megatron-core" },
@@ -2490,6 +2491,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.51.0" },
     { name = "triton", index = "https://download.pytorch.org/whl/cu128" },
     { name = "unbabel-comet", marker = "extra == 'infinisst'", specifier = ">=2.2.0" },
+    { name = "vllm", marker = "extra == 'infinisst'", specifier = "==0.9.0" },
     { name = "vllm", marker = "extra == 'vllm'", specifier = "==0.9.0" },
     { name = "wandb" },
 ]

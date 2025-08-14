@@ -6,7 +6,7 @@ CKPTS_DIR=$ROOT/ckpts
 DATA_DIR=$ROOT/data
 HF_CACHE_DIR=$ROOT/.cache/huggingface
 
-NUM_ACTOR_NODES=3  # Total nodes requested (head is colocated on ray-worker-0)
+NUM_ACTOR_NODES=4  # Total nodes requested (head is colocated on ray-worker-0)
 
 CONFIG_NAME=$1
 N=5
@@ -15,6 +15,9 @@ HF_TOKEN=$(cat $ROOT/.keys/hf_token)
 WANDB_API_KEY=$(cat $ROOT/.keys/wandb_api_key)
 
 JOB_NAME="${CONFIG_NAME}"
+
+# ACCOUNT=llmservice_nemo_reasoning
+ACCOUNT=convai_convaird_nemo-speech
 
 for i in $(seq 1 ${N}); do
     # COMMAND="NRL_VLLM_USE_V1=0 PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
@@ -26,7 +29,7 @@ for i in $(seq 1 ${N}); do
     WANDB_API_KEY=${WANDB_API_KEY} \
     sbatch \
         --nodes=${NUM_ACTOR_NODES} \
-        --account=llmservice_nemo_reasoning \
+        --account=${ACCOUNT} \
         --job-name=${JOB_NAME} \
         --partition=batch \
         --dependency=singleton \
