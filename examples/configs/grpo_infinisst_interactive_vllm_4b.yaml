@@ -1,0 +1,75 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_infinisst_4b.yaml"
+
+grpo:
+  num_prompts_per_step: 2
+  max_rollout_turns: 60 # Maximum turns allowed per rollout
+  val_at_start: false
+  max_val_samples: 128
+  val_batch_size: 128
+  normalize_rewards: false
+  reduce_baseline_rewards: false
+
+policy:
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_4node/checkpoints/step=2000-last.ckpt.hf"
+  train_global_batch_size: 32
+  train_micro_batch_size: 1
+  logprob_batch_size: 4
+
+  dtensor_cfg:
+    tensor_parallel_size: 1
+    
+  generation:
+    top_p: 0.999
+    top_k: 10000
+    max_new_tokens: 40
+    max_token_id: 151645
+    vllm_kwargs:
+      enable_prompt_embeds: false
+    vllm_cfg:
+      async_engine: false
+      gpu_memory_utilization: 0.6
+
+data:
+  train_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"
+  val_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en_dev/manifest.parquet"
+  train_data_shuffle: true
+  val_data_shuffle: false
+  seed: 42
+  src_lang: "en"
+  tgt_lang: "zh"
+ 
+env:
+  infinisst:
+    cfg:
+      scoring_model_type: "seed-x-rm"
+      scoring_model_path: "/ckpts/llm/seed-x-rm-7b"
+      # scoring_model_type: "vip"
+      # scoring_model_path: "/ckpts/llm/qwen3-30b-a3b-thinking-2507-fp8"
+      # scoring_model_samples: 4
+      # scoring_model_type: "google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      # scoring_model_path: "/ckpts/llm/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      # scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      # scoring_model_type: "Unbabel/XCOMET-XL"
+      # scoring_model_path: "/ckpts/llm/xcomet-xl"
+      qe: false
+      alpha: 1.0
+      beta: 0.0
+      max_latency: 10.0
+      normalize: true
+      num_gpus: 1
+      
+logger:
+  wandb_enabled: false
+
+checkpointing:
+  enabled: false
+  checkpoint_dir: "/ckpts/infinisst-rl/debug"
+  metric_name: "val_reward"
+  higher_is_better: true
+  keep_top_k: 3
+  save_period: 10
+
+cluster:
+  gpus_per_node: 1
+  num_nodes: 1

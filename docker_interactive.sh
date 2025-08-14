@@ -29,4 +29,4 @@ sbatch \
 export PYTHONPATH=/code/RL-dev:$PYTHONPATH
 export TOKENIZERS_PARALLELISM=false
 uv run python examples/run_grpo_infinisst.py \
-    --config examples/configs/grpo_infinisst_interactive_vllm.yaml
+    --config examples/configs/grpo_infinisst_interactive_vllm_4b.yaml

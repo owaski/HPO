@@ -2,7 +2,7 @@ import os
 import copy
 import random
 import re
-from typing import Any, Optional, TypedDict
+from typing import Any, List, Optional, TypedDict
 
 import json
 import tempfile
@@ -10,8 +10,10 @@ import tempfile
 import ray
 import numpy as np
 import torch
+import torch.nn as nn
 import transformers
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig, MistralForCausalLM
+from safetensors.torch import load_file
 import time
 from tqdm import tqdm
 
@@ -49,6 +51,15 @@ SENT_SPLITTERS = {
 
 CHAR_LANGS = set(['zh', 'ja'])
 WORD_LANGS = set(['en', 'de', 'es', 'ru'])
+
+CODE2LANG = {
+    'en': 'English',
+    'zh': 'Chinese',
+    'ru': 'Russian',
+    'de': 'German',
+    'es': 'Spanish',
+    'ja': 'Japanese',
+}
 
 SYSTEM_PROMPT = "You are a professional translation evaluator."
 TEMPLATE = """Your task is to assess whether a translation segment successfully conveys the semantic content of the original speech according to the following criteria:
@@ -153,6 +164,49 @@ class LCME:
         
         return src_tgt_alignmentss
 
+class RewardModel:
+    def __init__(self, model_dir) -> None:
+        config = AutoConfig.from_pretrained(model_dir)
+        # config._attn_implementation = "flash_attention_2"
+        self.device = torch.device('cuda')
+        self.model = MistralForCausalLM(config)
+        self.model.lm_head = nn.Linear(config.hidden_size, 1, bias=False)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        state_dict = load_file(f"{model_dir}/model.safetensors")
+        self.model.load_state_dict(state_dict, strict=False)
+        self.model.to(dtype=torch.bfloat16)
+        self.model.to(device=self.device)
+        self.model.eval()
+
+    @torch.no_grad()
+    def _score(self, prompts, chosens) -> List[float]:
+        # Concat prompt and chosen, append eos_id
+        input_ids_list = [self.tokenizer.encode(prompt) + self.tokenizer.encode(chosen) + [self.tokenizer.eos_token_id] for prompt, chosen in zip(prompts, chosens)]
+
+        # Pad sequences to the maximum length
+        max_length = max(len(ids) for ids in input_ids_list)
+        padded_input_ids = [ids + [self.tokenizer.pad_token_id or self.tokenizer.eos_token_id] * (max_length - len(ids)) for ids in input_ids_list]
+
+        # Forward pass
+        input_ids = torch.tensor(padded_input_ids).to(device=self.device)
+        logits = self.model(input_ids).logits
+
+        # Extract logits corresponding to eos_token_id positions
+        scores = []
+        for i, input_ids in enumerate(input_ids_list):
+            eos_position = input_ids.index(self.tokenizer.eos_token_id)
+            eos_logit = logits[i, eos_position, :].squeeze().item()
+            scores.append(eos_logit)
+
+        return scores
+
+    def score(self, sources, hypotheses, src_lang, tgt_lang) -> List[float]:
+        prompts = [
+            f"Translate the following {CODE2LANG[src_lang]} sentence into {CODE2LANG[tgt_lang]}:\n{source} <{tgt_lang}>"
+            for source in sources
+        ]
+        return self._score(prompts, hypotheses)
+
 @ray.remote
 class InfiniSSTScorer:
     def __init__(self, cfg: InfiniSSTConfig):
@@ -184,6 +238,10 @@ class InfiniSSTScorer:
                 enforce_eager=True,
             )
             self.worst_score = 0.0
+        elif 'seed-x-rm' in cfg["scoring_model_type"].lower():
+            breakpoint()
+            self.reward_model = RewardModel(cfg["scoring_model_path"])
+            self.worst_score = -10
         else:
             raise ValueError(f"Invalid scoring model type: {cfg['scoring_model_type']}")
             
@@ -330,6 +388,15 @@ class InfiniSSTScorer:
                     n_no += "No" in answer
                     n_other += "Yes" not in answer and "No" not in answer
                 scoring_model_scores.append(float(n_yes > n_no))
+        elif 'seed-x-rm' in self.cfg["scoring_model_type"].lower():
+            sources = [scorer_datum["src"] for scorer_datum in scorer_data]
+            hypotheses = [scorer_datum["mt"] for scorer_datum in scorer_data]
+            scoring_model_scores = self.reward_model.score(
+                sources, 
+                hypotheses, 
+                self.cfg["src_lang"], 
+                self.cfg["tgt_lang"]
+            )
         else:
             raise ValueError(f"Invalid scoring model type: {self.cfg['scoring_model_type']}")
         
