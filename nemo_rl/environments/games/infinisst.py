@@ -239,7 +239,6 @@ class InfiniSSTScorer:
             )
             self.worst_score = 0.0
         elif 'seed-x-rm' in cfg["scoring_model_type"].lower():
-            breakpoint()
             self.reward_model = RewardModel(cfg["scoring_model_path"])
             self.worst_score = -10
         else:
