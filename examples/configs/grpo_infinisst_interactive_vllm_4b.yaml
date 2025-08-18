@@ -42,8 +42,12 @@ data:
 env:
   infinisst:
     cfg:
-      scoring_model_type: "seed-x-rm"
-      scoring_model_path: "/ckpts/llm/seed-x-rm-7b"
+      scoring_model_type: "mqm"
+      scoring_model_path: "/ckpts/llm/qwen3-30b-a3b-instruct-2507-fp8"
+      scoring_examples_path: "/code/RL-dev/nemo_rl/environments/games/mqm/gemba_examples.jsonl"
+      scoring_model_samples: 8
+      # scoring_model_type: "seed-x-rm"
+      # scoring_model_path: "/ckpts/llm/seed-x-rm-7b"
       # scoring_model_type: "vip"
       # scoring_model_path: "/ckpts/llm/qwen3-30b-a3b-thinking-2507-fp8"
       # scoring_model_samples: 4

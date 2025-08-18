@@ -26,6 +26,7 @@ from nemo_rl.environments.interfaces import (
 from nemo_rl.distributed.ray_actor_environment_registry import get_actor_python_env
 from nemo_rl.distributed.virtual_cluster import PY_EXECUTABLES, RayVirtualCluster
 from nemo_rl.environments.games.metricx24.predict import get_dataset
+from nemo_rl.environments.games.mqm.utils import MQMExampleGenerator, build_prompt, lang_lookup
 
 class InfiniSSTConfig(TypedDict):
     scoring_model_path: str
@@ -241,6 +242,25 @@ class InfiniSSTScorer:
         elif 'seed-x-rm' in cfg["scoring_model_type"].lower():
             self.reward_model = RewardModel(cfg["scoring_model_path"])
             self.worst_score = -10
+        elif 'mqm' in cfg["scoring_model_type"].lower():
+            breakpoint()
+            from vllm import LLM, SamplingParams
+            self.mqm_examples = MQMExampleGenerator(
+                filepath=cfg["scoring_examples_path"],
+                n=3,
+                span_type="none",
+            )
+            self.mqm_tokenizer = AutoTokenizer.from_pretrained(cfg["scoring_model_path"])
+            self.mqm_sampling_params = SamplingParams(
+                temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_tokens=1024, n=self.cfg["scoring_model_samples"],
+            )
+            self.mqm_llm = LLM(
+                model=cfg["scoring_model_path"],
+                max_model_len=1024,
+                gpu_memory_utilization=0.80,
+                enforce_eager=True,
+            )
+            self.worst_score = -25
         else:
             raise ValueError(f"Invalid scoring model type: {cfg['scoring_model_type']}")
             
@@ -396,6 +416,25 @@ class InfiniSSTScorer:
                 self.cfg["src_lang"], 
                 self.cfg["tgt_lang"]
             )
+        elif 'mqm' in self.cfg["scoring_model_type"].lower():
+            breakpoint()
+            messages = []
+            for scorer_datum in scorer_data:
+                message = build_prompt(
+                    self.mqm_examples,
+                    lang_lookup[self.cfg["src_lang"]],
+                    lang_lookup[self.cfg["tgt_lang"]],
+                    scorer_datum["src"],
+                    scorer_datum["mt"],
+                    scorer_datum["ref"],
+                )
+                messages.append(message)
+            outputs = self.mqm_llm.chat(
+                messages,
+                sampling_params=self.mqm_sampling_params,
+            )
+            for output in outputs:
+                scoring_model_scores.append(output.outputs[0].text)
         else:
             raise ValueError(f"Invalid scoring model type: {self.cfg['scoring_model_type']}")
         
