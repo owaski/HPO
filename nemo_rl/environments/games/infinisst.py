@@ -27,6 +27,7 @@ from nemo_rl.distributed.ray_actor_environment_registry import get_actor_python_
 from nemo_rl.distributed.virtual_cluster import PY_EXECUTABLES, RayVirtualCluster
 from nemo_rl.environments.games.metricx24.predict import get_dataset
 from nemo_rl.environments.games.mqm.utils import MQMExampleGenerator, build_prompt, lang_lookup, parse_mqm_answer, validate_output
+from nemo_rl.environments.games.m_prometheus.template import TEMPLATE as M_PROMETHEUS_TEMPLATE
 
 class InfiniSSTConfig(TypedDict):
     scoring_model_path: str
@@ -220,6 +221,7 @@ class InfiniSSTScorer:
             model_path = download_model(cfg["scoring_model_type"], saving_directory=cfg["scoring_model_path"])
             self.scoring_model = load_from_checkpoint(model_path)
             self.worst_score = 0
+            self.batch_size = cfg["batch_size"]
         elif 'metricx' in cfg["scoring_model_type"].lower():
             from nemo_rl.environments.games.metricx24 import models
             self.scoring_tokenizer = AutoTokenizer.from_pretrained(cfg["scoring_tokenizer_path"])
@@ -234,7 +236,7 @@ class InfiniSSTScorer:
             )
             self.llm = LLM(
                 model=cfg["scoring_model_path"],
-                max_model_len=1024,
+                max_model_len=4096,
                 gpu_memory_utilization=0.80,
                 enforce_eager=True,
             )
@@ -260,10 +262,20 @@ class InfiniSSTScorer:
                 enforce_eager=True,
             )
             self.worst_score = -25
+        elif 'm-prometheus' in cfg["scoring_model_type"].lower():
+            from vllm import LLM, SamplingParams
+            self.m_prometheus_sampling_params = SamplingParams(
+                temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_tokens=1024, n=self.cfg["scoring_model_samples"],
+            )
+            self.m_prometheus_llm = LLM(
+                model=cfg["scoring_model_path"],
+                max_model_len=4096,
+                gpu_memory_utilization=0.80,
+                enforce_eager=True,
+            )
+            self.worst_score = 0
         else:
             raise ValueError(f"Invalid scoring model type: {cfg['scoring_model_type']}")
-            
-        self.batch_size = cfg["batch_size"]
 
     def predict(self, data: list[dict[str, str]]) -> list[float]:
         for instance in data:
@@ -438,6 +450,34 @@ class InfiniSSTScorer:
                     try:
                         if validate_output(o.text):
                             scores.append(parse_mqm_answer(o.text))
+                    except Exception as e:
+                        pass
+                scoring_model_scores.append(sum(scores) / len(scores) if len(scores) > 0 else self.worst_score)
+        elif 'm-prometheus' in self.cfg["scoring_model_type"].lower():
+            messages = []
+            for scorer_datum in scorer_data:
+                prompt = M_PROMETHEUS_TEMPLATE.format(
+                    source_language=lang_lookup[self.cfg["src_lang"]], 
+                    target_language=lang_lookup[self.cfg["tgt_lang"]], 
+                    source=scorer_datum["src"], 
+                    hypothesis=scorer_datum["mt"], 
+                    reference=scorer_datum["ref"]
+                )
+                message = [
+                    {"role": "user", "content": prompt}
+                ]
+                messages.append(message)
+            outputs = self.m_prometheus_llm.chat(
+                messages,
+                sampling_params=self.m_prometheus_sampling_params,
+            )
+            scoring_model_scores = []
+            for output in outputs:
+                scores = []
+                for o in output.outputs:
+                    try:
+                        if '[RESULT]' in o.text:
+                            scores.append(int(o.text.split('[RESULT]')[1].strip()))
                     except Exception as e:
                         pass
                 scoring_model_scores.append(sum(scores) / len(scores) if len(scores) > 0 else self.worst_score)
