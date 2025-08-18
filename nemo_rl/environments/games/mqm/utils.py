@@ -384,38 +384,29 @@ def validate_output(output):
 
     return True
 
-def parse_error_class(error):
-    # parse error from error description, errors are ['accuracy', 'fluency', 'locale convention', 'style', 'terminology', 'non-translation', 'other']
-    #  locale convention (currency, date, name, telephone, or time format), style (awkward), terminology (inappropriate for context, inconsistent use),
-    class_name = "unknown"
-    if "accuracy" in error:
-        class_name = "accuracy"
-        for subclass in ["addition", "mistranslation", "omission", "untranslated text"]:
-            if subclass in error:
-                class_name = f"accuracy-{subclass}"
-    elif "fluency" in error:
-        class_name = "fluency"
-        for subclass in ["character encoding", "grammar", "inconsistency", "punctuation", "register", "spelling"]:
-            if subclass in error:
-                class_name = f"fluency-{subclass}"
-    elif "locale convention" in error:
-        class_name = "locale convention"
-        for subclass in ["currency", "date", "name", "telephone", "time"]:
-            if subclass in error:
-                class_name = f"locale convention-{subclass}"
-    elif "style" in error:
-        class_name = "style"
-    elif "terminology" in error:
-        class_name = "terminology"
-        for subclass in ["inappropriate", "inconsistent"]:
-            if subclass in error:
-                class_name = f"terminology-{subclass}"
-    elif "non-translation" in error:
-        class_name = "non-translation"
-    elif "other" in error:
-        class_name = "other"
 
-    return class_name
+# MQM weights per severity/category
+MQM_WEIGHTS = {
+    ("major", "non-translation"): 25,
+    ("minor", "fluency/punctuation"): 0.1,
+    ("major", None): 5,
+    ("minor", None): 1,
+    ("neutral", None): 0,
+}
+
+def get_error_weight(error):
+    try:
+        severity = error.get("severity")
+        category = error.get("category")
+    except:
+        return 0
+
+    if severity == "major" and category == "non-translation":
+        return MQM_WEIGHTS[("major", "non-translation")]
+    elif severity == "minor" and category == "fluency/punctuation":
+        return MQM_WEIGHTS[("minor", "fluency/punctuation")]
+    else:
+        return MQM_WEIGHTS.get((severity, None), 0)
 
 
 def parse_mqm_answer(x):
@@ -425,12 +416,7 @@ def parse_mqm_answer(x):
     errors = json.loads(x)["errors"]
     final_score = 0
     for error in errors:
-        if error["severity"] == "critical":
-            final_score += 25
-        elif error["severity"] == "major":
-            final_score += 5
-        elif error["severity"] == "minor":
-            final_score += 1
+        final_score += get_error_weight(error)
 
     if final_score > 25:
         final_score = 25
