@@ -16,8 +16,8 @@ WANDB_API_KEY=$(cat $ROOT/.keys/wandb_api_key)
 
 JOB_NAME="${CONFIG_NAME}"
 
-# ACCOUNT=llmservice_nemo_reasoning
-ACCOUNT=convai_convaird_nemo-speech
+ACCOUNT=llmservice_nemo_reasoning
+# ACCOUNT=convai_convaird_nemo-speech
 
 for i in $(seq 1 ${N}); do
     # COMMAND="NRL_VLLM_USE_V1=0 PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
