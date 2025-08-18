@@ -26,7 +26,7 @@ from nemo_rl.environments.interfaces import (
 from nemo_rl.distributed.ray_actor_environment_registry import get_actor_python_env
 from nemo_rl.distributed.virtual_cluster import PY_EXECUTABLES, RayVirtualCluster
 from nemo_rl.environments.games.metricx24.predict import get_dataset
-from nemo_rl.environments.games.mqm.utils import MQMExampleGenerator, build_prompt, lang_lookup
+from nemo_rl.environments.games.mqm.utils import MQMExampleGenerator, build_prompt, lang_lookup, parse_mqm_answer, validate_output
 
 class InfiniSSTConfig(TypedDict):
     scoring_model_path: str
@@ -243,7 +243,6 @@ class InfiniSSTScorer:
             self.reward_model = RewardModel(cfg["scoring_model_path"])
             self.worst_score = -10
         elif 'mqm' in cfg["scoring_model_type"].lower():
-            breakpoint()
             from vllm import LLM, SamplingParams
             self.mqm_examples = MQMExampleGenerator(
                 filepath=cfg["scoring_examples_path"],
@@ -256,7 +255,7 @@ class InfiniSSTScorer:
             )
             self.mqm_llm = LLM(
                 model=cfg["scoring_model_path"],
-                max_model_len=1024,
+                max_model_len=4096,
                 gpu_memory_utilization=0.80,
                 enforce_eager=True,
             )
@@ -417,7 +416,6 @@ class InfiniSSTScorer:
                 self.cfg["tgt_lang"]
             )
         elif 'mqm' in self.cfg["scoring_model_type"].lower():
-            breakpoint()
             messages = []
             for scorer_datum in scorer_data:
                 message = build_prompt(
@@ -433,11 +431,19 @@ class InfiniSSTScorer:
                 messages,
                 sampling_params=self.mqm_sampling_params,
             )
+            scoring_model_scores = []
             for output in outputs:
-                scoring_model_scores.append(output.outputs[0].text)
+                scores = []
+                for o in output.outputs:
+                    try:
+                        if validate_output(o.text):
+                            scores.append(parse_mqm_answer(o.text))
+                    except Exception as e:
+                        pass
+                scoring_model_scores.append(sum(scores) / len(scores) if len(scores) > 0 else self.worst_score)
         else:
             raise ValueError(f"Invalid scoring model type: {self.cfg['scoring_model_type']}")
-        
+
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
         

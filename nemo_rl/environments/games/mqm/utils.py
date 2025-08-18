@@ -369,3 +369,70 @@ def build_prompt(incontext_examples, source_language, target_language, source_se
 
     messages = [initial_instruct] + incontext + [prompt]
     return messages
+
+def validate_output(output):
+    # pass json format
+    try:
+        data = json.loads(output)
+    except:
+        print(f"Failed json format: {output}")
+        return False
+    # pass single line format
+    if "\n" in output:
+        print(f"Failed single line format {output}")
+        return False
+
+    return True
+
+def parse_error_class(error):
+    # parse error from error description, errors are ['accuracy', 'fluency', 'locale convention', 'style', 'terminology', 'non-translation', 'other']
+    #  locale convention (currency, date, name, telephone, or time format), style (awkward), terminology (inappropriate for context, inconsistent use),
+    class_name = "unknown"
+    if "accuracy" in error:
+        class_name = "accuracy"
+        for subclass in ["addition", "mistranslation", "omission", "untranslated text"]:
+            if subclass in error:
+                class_name = f"accuracy-{subclass}"
+    elif "fluency" in error:
+        class_name = "fluency"
+        for subclass in ["character encoding", "grammar", "inconsistency", "punctuation", "register", "spelling"]:
+            if subclass in error:
+                class_name = f"fluency-{subclass}"
+    elif "locale convention" in error:
+        class_name = "locale convention"
+        for subclass in ["currency", "date", "name", "telephone", "time"]:
+            if subclass in error:
+                class_name = f"locale convention-{subclass}"
+    elif "style" in error:
+        class_name = "style"
+    elif "terminology" in error:
+        class_name = "terminology"
+        for subclass in ["inappropriate", "inconsistent"]:
+            if subclass in error:
+                class_name = f"terminology-{subclass}"
+    elif "non-translation" in error:
+        class_name = "non-translation"
+    elif "other" in error:
+        class_name = "other"
+
+    return class_name
+
+
+def parse_mqm_answer(x):
+    if x is None:
+        return None
+
+    errors = json.loads(x)["errors"]
+    final_score = 0
+    for error in errors:
+        if error["severity"] == "critical":
+            final_score += 25
+        elif error["severity"] == "major":
+            final_score += 5
+        elif error["severity"] == "minor":
+            final_score += 1
+
+    if final_score > 25:
+        final_score = 25
+    
+    return -final_score
