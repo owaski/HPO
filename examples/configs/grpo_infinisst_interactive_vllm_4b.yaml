@@ -3,7 +3,7 @@ defaults: "grpo_infinisst_4b.yaml"
 
 grpo:
   num_prompts_per_step: 2
-  max_rollout_turns: 60 # Maximum turns allowed per rollout
+  max_rollout_turns: 30 # Maximum turns allowed per rollout
   val_at_start: false
   max_val_samples: 128
   val_batch_size: 128
@@ -22,7 +22,7 @@ policy:
   generation:
     top_p: 0.999
     top_k: 10000
-    max_new_tokens: 40
+    max_new_tokens: 60
     max_token_id: 151645
     vllm_kwargs:
       enable_prompt_embeds: false
@@ -38,13 +38,15 @@ data:
   seed: 42
   src_lang: "en"
   tgt_lang: "zh"
+  multiplier: 2
  
 env:
   infinisst:
     cfg:
-      scoring_model_type: "m-prometheus"
-      scoring_model_path: "/ckpts/llm/m-prometheus-14b"
-      scoring_model_samples: 4
+      step_size: 2.24
+      # scoring_model_type: "m-prometheus"
+      # scoring_model_path: "/ckpts/llm/m-prometheus-14b"
+      # scoring_model_samples: 4
       # scoring_model_type: "mqm"
       # scoring_model_path: "/ckpts/llm/qwen3-30b-a3b-instruct-2507-fp8"
       # scoring_examples_path: "/code/RL-dev/nemo_rl/environments/games/mqm/gemba_examples.jsonl"
@@ -54,9 +56,9 @@ env:
       # scoring_model_type: "vip"
       # scoring_model_path: "/ckpts/llm/qwen3-30b-a3b-thinking-2507-fp8"
       # scoring_model_samples: 4
-      # scoring_model_type: "google/metricx-24-hybrid-xxl-v2p6-bfloat16"
-      # scoring_model_path: "/ckpts/llm/metricx-24-hybrid-xxl-v2p6-bfloat16"
-      # scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      scoring_model_type: "google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      scoring_model_path: "/ckpts/llm/metricx-24-hybrid-xxl-v2p6-bfloat16"
+      scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
       # scoring_model_type: "Unbabel/XCOMET-XL"
       # scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: false
@@ -64,7 +66,7 @@ env:
       beta: 0.0
       max_latency: 10.0
       normalize: true
-      num_gpus: 1
+      num_gpus: 4
       
 logger:
   wandb_enabled: false
@@ -78,5 +80,5 @@ checkpointing:
   save_period: 10
 
 cluster:
-  gpus_per_node: 1
+  gpus_per_node: 4
   num_nodes: 1

@@ -65,7 +65,7 @@ class IterableInfiniSSTDataset(IterableDataset):
     """An IterableDataset that generates sliding puzzle data indefinitely."""
 
     def __init__(
-        self, tokenizer, data_file, shuffle, seed, src_lang, tgt_lang, task_name, length
+        self, tokenizer, data_file, shuffle, seed, src_lang, tgt_lang, task_name, length, multiplier
     ):
         super().__init__()
         self.tokenizer = tokenizer
@@ -76,6 +76,7 @@ class IterableInfiniSSTDataset(IterableDataset):
         self.tgt_lang = tgt_lang
         self.task_name = task_name
         self.length = length
+        self.multiplier = multiplier
 
     def __iter__(self) -> Iterator[DatumSpec]:
         print("Starting IterableInfiniSSTDataset (indefinite generation).")
@@ -95,7 +96,7 @@ class IterableInfiniSSTDataset(IterableDataset):
                 },
                 {
                     "role": "user",
-                    "content": "<|video_pad|>" * data['chunk_frame_size'],
+                    "content": "<|video_pad|>" * data['chunk_frame_size'] * self.multiplier,
                 }
             ]
             token_ids = self.tokenizer.apply_chat_template(
@@ -114,7 +115,7 @@ class IterableInfiniSSTDataset(IterableDataset):
                 'length': len(token_ids),
                 'extra_env_info': {
                     'step': 0,
-                    'chunk_frame_size': data['chunk_frame_size'],
+                    'chunk_frame_size': data['chunk_frame_size'] * self.multiplier,
                     'src_segments': data['src_segments'],
                     'tgt_segments': data['tgt_segments'],
                     'segment_info': data['segment_info'],
@@ -163,6 +164,7 @@ def setup_infinisst_data(
         tgt_lang=data_cfg["tgt_lang"],
         task_name=task_name,
         length=length,
+        multiplier=data_cfg.get("multiplier", 1),
     )
     print("InfiniSST dataset created.")
 
@@ -175,6 +177,7 @@ def setup_infinisst_data(
         tgt_lang=data_cfg["tgt_lang"],
         task_name=task_name,
         length=val_length,
+        multiplier=data_cfg.get("multiplier", 1),
     )
     val_task_to_env = task_to_env
 
