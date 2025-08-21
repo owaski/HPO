@@ -244,6 +244,9 @@ def find_best_alignment(all_results: List[dict], doc_id: str) -> List[Tuple[List
     prev_avg_cost = None
     fallback_result = None
 
+    STOP_JUMP = 0.15
+    COST_MIN = 0.30
+
     for res in all_results:
         dpf = res["del_percentile_frac"]
         avg_cost = res["avg_cost"]
@@ -332,11 +335,11 @@ def run_vecalign_explore(src_text: str, tgt_text: str, src_overlap: str, tgt_ove
     with open(tgt_embed_file_path, "wb") as f:
         f.write(tgt_embed)
 
-    del_percentile_frac = 0.05
+    del_percentile_frac = 0.2
     step_size = 0.005
     all_results = []
 
-    while del_percentile_frac > 0.05 - 1e-6:
+    while del_percentile_frac > 0.01:
         vecalign_main(
             override_args={
                 "alignment_max_size": max_size,
