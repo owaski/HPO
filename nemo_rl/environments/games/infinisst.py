@@ -365,6 +365,10 @@ class InfiniSSTScorer:
             for j in range(len(delays)):
                 latency += delays[j] - step * (j + 1) - start
             latency /= len(delays)
+
+            if self.cfg.get("target_latency", None) is not None:
+                latency = max(0, latency - self.cfg["target_latency"])
+
             latencies[instance2data[i]].append(latency)
         mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
 

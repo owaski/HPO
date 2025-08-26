@@ -3,7 +3,7 @@ defaults: "grpo_infinisst_4b.yaml"
 
 grpo:
   num_prompts_per_step: 2
-  max_rollout_turns: 30 # Maximum turns allowed per rollout
+  max_rollout_turns: 15 # Maximum turns allowed per rollout
   val_at_start: false
   max_val_samples: 128
   val_batch_size: 128
@@ -38,12 +38,12 @@ data:
   seed: 42
   src_lang: "en"
   tgt_lang: "zh"
-  multiplier: 2
+  multiplier: 4
  
 env:
   infinisst:
     cfg:
-      step_size: 2.24
+      step_size: 4.48
       # scoring_model_type: "m-prometheus"
       # scoring_model_path: "/ckpts/llm/m-prometheus-14b"
       # scoring_model_samples: 4
@@ -63,10 +63,11 @@ env:
       # scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: false
       alpha: 1.0
-      beta: 0.0
+      beta: 1.0
+      target_latency: 2.8
       max_latency: 10.0
       normalize: true
-      num_gpus: 4
+      num_gpus: 1
       
 logger:
   wandb_enabled: false
@@ -80,5 +81,5 @@ checkpointing:
   save_period: 10
 
 cluster:
-  gpus_per_node: 4
+  gpus_per_node: 1
   num_nodes: 1
