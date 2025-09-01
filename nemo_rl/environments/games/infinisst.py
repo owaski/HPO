@@ -370,7 +370,6 @@ class InfiniSSTScorer:
                 latency = max(0, latency - self.cfg["target_latency"])
 
             latencies[instance2data[i]].append(latency)
-        mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
 
         if 'comet' in self.cfg["scoring_model_type"].lower():
             scoring_model_scores = self.scoring_model.predict(scorer_data, batch_size=self.batch_size, gpus=1).scores
@@ -490,10 +489,17 @@ class InfiniSSTScorer:
 
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
+
+        breakpoint()
+        if self.cfg.get("target_quality", None) is not None:
+            target_quality = self.cfg["target_quality"]
+            for score_list, latency_list in zip(quality_scores, latencies):
+                for i in range(len(score_list)):
+                    if score_list[i] < target_quality:
+                        latency_list[i] = self.cfg["max_latency"]
         
-        mean_quality_scores = []
-        for score_list in quality_scores:
-            mean_quality_scores.append(sum(score_list) / len(score_list))
+        mean_quality_scores = [sum(score_list) / len(score_list) for score_list in quality_scores]
+        mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
 
         scores = [
             {
