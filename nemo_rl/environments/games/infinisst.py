@@ -490,7 +490,6 @@ class InfiniSSTScorer:
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
 
-        breakpoint()
         if self.cfg.get("target_quality", None) is not None:
             target_quality = self.cfg["target_quality"]
             for score_list, latency_list in zip(quality_scores, latencies):
