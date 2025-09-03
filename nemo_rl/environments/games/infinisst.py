@@ -490,22 +490,25 @@ class InfiniSSTScorer:
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
 
+        hinged_latencies = copy.deepcopy(latencies)
         if self.cfg.get("target_quality", None) is not None:
             target_quality = self.cfg["target_quality"]
-            for score_list, latency_list in zip(quality_scores, latencies):
+            for score_list, latency_list in zip(quality_scores, hinged_latencies):
                 for i in range(len(score_list)):
                     if score_list[i] < target_quality:
                         latency_list[i] = self.cfg["max_latency"]
         
         mean_quality_scores = [sum(score_list) / len(score_list) for score_list in quality_scores]
         mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
+        mean_hinged_latencies = [sum(latency_list) / len(latency_list) for latency_list in hinged_latencies]
 
         scores = [
             {
                 self.cfg["scoring_model_type"]: quality_score,
                 "latency": latency,
+                "hinged_latency": hinged_latency,
             }
-            for quality_score, latency in zip(mean_quality_scores, mean_latencies)
+            for quality_score, latency, hinged_latency in zip(mean_quality_scores, mean_latencies, mean_hinged_latencies)
         ]
         return scores
 
@@ -584,7 +587,7 @@ class InfiniSSTEnv(EnvironmentInterface):
         }
 
         quality_scores = np.array(metrics[self.cfg["scoring_model_type"]])
-        latencies = np.array(metrics["latency"])
+        hinged_latencies = np.array(metrics["hinged_latency"])
         features_ids = np.array(features_ids)
 
         if self.cfg["normalize"]:
@@ -596,13 +599,13 @@ class InfiniSSTEnv(EnvironmentInterface):
                 if std_quality_scores > 0:
                     quality_scores[mask] = quality_scores[mask] / std_quality_scores
 
-                mean_latencies = latencies[mask].mean()
-                std_latencies = latencies[mask].std()
-                latencies[mask] = latencies[mask] - mean_latencies
+                mean_latencies = hinged_latencies[mask].mean()
+                std_latencies = hinged_latencies[mask].std()
+                hinged_latencies[mask] = hinged_latencies[mask] - mean_latencies
                 if std_latencies > 0:
-                    latencies[mask] = latencies[mask] / std_latencies
+                    hinged_latencies[mask] = hinged_latencies[mask] / std_latencies
 
-        rewards = self.cfg["alpha"] * quality_scores - self.cfg["beta"] * latencies
+        rewards = self.cfg["alpha"] * quality_scores - self.cfg["beta"] * hinged_latencies
 
         return rewards, metrics
 
