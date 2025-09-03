@@ -490,17 +490,26 @@ class InfiniSSTScorer:
         for i, idx in enumerate(instance2data):
             quality_scores[idx].append(scoring_model_scores[i])
 
+        mean_quality_scores = [sum(score_list) / len(score_list) for score_list in quality_scores]
+        mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
+
         hinged_latencies = copy.deepcopy(latencies)
         if self.cfg.get("target_quality", None) is not None:
             target_quality = self.cfg["target_quality"]
-            for score_list, latency_list in zip(quality_scores, hinged_latencies):
-                for i in range(len(score_list)):
-                    if score_list[i] < target_quality:
-                        latency_list[i] = self.cfg["max_latency"]
-        
-        mean_quality_scores = [sum(score_list) / len(score_list) for score_list in quality_scores]
-        mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
-        mean_hinged_latencies = [sum(latency_list) / len(latency_list) for latency_list in hinged_latencies]
+            if self.cfg["hinge_granularity"] == "sentence":
+                for score_list, latency_list in zip(quality_scores, hinged_latencies):
+                    for i in range(len(score_list)):
+                        if score_list[i] < target_quality:
+                            latency_list[i] = 0
+                        else:
+                            latency_list[i] = min(0, latency_list[i] - self.cfg["max_latency"])
+                mean_hinged_latencies = [sum(latency_list) / len(latency_list) for latency_list in hinged_latencies]
+            elif self.cfg["hinge_granularity"] == "document":
+                mean_hinged_latencies = [
+                    min(0, sum(latency_list) / len(latency_list) - self.cfg["max_latency"])
+                    if mean_quality_score >= target_quality else 0
+                    for mean_quality_score, latency_list in zip(mean_quality_scores, hinged_latencies)
+                ]
 
         scores = [
             {

@@ -63,9 +63,10 @@ env:
       # scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: false
       alpha: 1.0
-      beta: 1.0
+      beta: 0.5
       # target_latency: 2.8
       target_quality: -5.0
+      hinge_granularity: "document"
       max_latency: 10.0
       normalize: true
       num_gpus: 1
