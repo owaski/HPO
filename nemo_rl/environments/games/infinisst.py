@@ -496,7 +496,8 @@ class InfiniSSTScorer:
         hinged_latencies = copy.deepcopy(latencies)
         if self.cfg.get("target_quality", None) is not None:
             target_quality = self.cfg["target_quality"]
-            if self.cfg["hinge_granularity"] == "sentence":
+            hinge_granularity = self.cfg.get("hinge_granularity", "sentence")
+            if hinge_granularity == "sentence":
                 for score_list, latency_list in zip(quality_scores, hinged_latencies):
                     for i in range(len(score_list)):
                         if score_list[i] < target_quality:
@@ -504,12 +505,14 @@ class InfiniSSTScorer:
                         else:
                             latency_list[i] = min(0, latency_list[i] - self.cfg["max_latency"])
                 mean_hinged_latencies = [sum(latency_list) / len(latency_list) for latency_list in hinged_latencies]
-            elif self.cfg["hinge_granularity"] == "document":
+            elif hinge_granularity == "document":
                 mean_hinged_latencies = [
                     min(0, sum(latency_list) / len(latency_list) - self.cfg["max_latency"])
                     if mean_quality_score >= target_quality else 0
                     for mean_quality_score, latency_list in zip(mean_quality_scores, hinged_latencies)
                 ]
+            else:
+                raise ValueError(f"Invalid hinge granularity: {self.cfg['hinge_granularity']}")
 
         scores = [
             {
