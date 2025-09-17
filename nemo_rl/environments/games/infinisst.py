@@ -6,6 +6,8 @@ from typing import Any, List, Optional, TypedDict
 
 import json
 import tempfile
+import subprocess
+import shutil
 
 import ray
 import numpy as np
@@ -167,6 +169,72 @@ class LCME:
         
         return src_tgt_alignmentss
 
+class MwerSegmenter:
+    """
+    Executes the mWERSegmenter tool introduced in `"Evaluating Machine Translation Output
+    with Automatic Sentence Segmentation" by Matusov et al. (2005)
+    <https://aclanthology.org/2005.iwslt-1.19/>`_.
+
+    The tool can be downloaded at:
+    https://www-i6.informatik.rwth-aachen.de/web/Software/mwerSegmenter.tar.gz
+    """
+    def __init__(self, character_level=False):
+        self.mwer_command = "mwerSegmenter"
+        self.character_level = character_level
+        if shutil.which(self.mwer_command) is None:
+            mwerSegmenter_root = '/code/RL-dev/nemo_rl/environments/games/mwerSegmenter'
+            assert mwerSegmenter_root is not None, \
+                f"{self.mwer_command} is not in PATH and no MWERSEGMENTER_ROOT environment " \
+                "variable is set"
+            self.mwer_command = mwerSegmenter_root + "/mwerSegmenter"
+
+    def __call__(self, prediction: str, reference_sentences: List[str]) -> List[str]:
+        """
+        Segments the prediction based on the reference sentences using the edit distance algorithm.
+        """
+        tmp_pred = tempfile.NamedTemporaryFile(mode="w", delete=False)
+        tmp_ref = tempfile.NamedTemporaryFile(mode="w", delete=False)
+        # create a  temporary directory where mwerSegmenter writes the segments
+        # so that multiple parallel runs of stream_laal do not conflict
+        tmp_dir = tempfile.mkdtemp()
+        if self.character_level:
+            # If character-level evaluation, add spaces for resegmentation
+            prediction = " ".join(prediction)
+            reference_sentences = [" ".join(reference) for reference in reference_sentences]
+        try:
+            tmp_pred.write(prediction)
+            tmp_ref.writelines(ref + '\n' for ref in reference_sentences)
+            tmp_pred.flush()
+            tmp_ref.flush()
+            subprocess.run([
+                self.mwer_command,
+                "-mref",
+                tmp_ref.name,
+                "-hypfile",
+                tmp_pred.name,
+                "-usecase",
+                "1"], cwd=tmp_dir)
+            # mwerSegmenter writes into the __segments file in the temporary directory. 
+            segments_file = os.path.join(tmp_dir, "__segments")
+            with open(segments_file, "r") as f:
+                segments = []
+                for line in f.readlines():
+                    if self.character_level:
+                        # If character-level evaluation, remove only spaces between characters
+                        line = re.sub(r'(.)\s', r'\1', line)
+                    segments.append(line.strip())
+                return segments
+        finally:
+            tmp_pred.close()
+            tmp_ref.close()
+            os.unlink(tmp_pred.name)
+            os.unlink(tmp_ref.name)
+            os.unlink(segments_file)
+            os.rmdir(tmp_dir)
+
+    def segment(self, data: list[dict[str, str]]) -> list[str]:
+        return [self(instance["tgt_text"], instance["ref_sents"]) for instance in data]
+
 class RewardModel:
     def __init__(self, model_dir) -> None:
         config = AutoConfig.from_pretrained(model_dir)
@@ -215,7 +283,7 @@ class InfiniSSTScorer:
     def __init__(self, cfg: InfiniSSTConfig):
         self.cfg = cfg
         self.sent_splitter = SENT_SPLITTERS[cfg["tgt_lang"]]
-        self.segmenter = LCME(cfg)
+        self.segmenter = LCME(cfg) if cfg["segmentation"] == "lcme" else MwerSegmenter(character_level=cfg["tgt_lang"] in CHAR_LANGS)
 
         if 'comet' in cfg["scoring_model_type"].lower():
             from comet import download_model, load_from_checkpoint
@@ -326,34 +394,61 @@ class InfiniSSTScorer:
         for idx, src_tgt_alignments in enumerate(src_tgt_alignmentss):
             src_sentences = data[idx]["src_sents"]
             src_info = data[idx]["src_info"]
-            ref_sentences = data[idx]["ref_sents"]
-            tgt_sentences = data[idx]["tgt_sents"]
-            tgt_delays = data[idx]["tgt_delays"]
+            ref_sentences = data[idx]["ref_sents"]   
 
-            for src_indices, tgt_indices in src_tgt_alignments:
-                if len(src_indices) == 0 or len(tgt_indices) == 0:
-                    latencies[idx].append(self.cfg["max_latency"])
-                    quality_scores[idx].append(self.worst_score)
-                    continue
-                src_sentence = src_sep.join([src_sentences[i] for i in src_indices])
-                ref_sentence = tgt_sep.join([ref_sentences[i] for i in src_indices])
-                ref_len = sum([len(ref_sentences[i].split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentences[i]) for i in src_indices])
-                tgt_sentence = tgt_sep.join([tgt_sentences[i] for i in tgt_indices])
-                tgt_delay = [delay for i in tgt_indices for delay in tgt_delays[i]]
+            if self.cfg["segmentation"] == "lcme":
+                tgt_sentences = data[idx]["tgt_sents"]
+                tgt_delays = data[idx]["tgt_delays"]  
+                for src_indices, tgt_indices in src_tgt_alignments:
+                    if len(src_indices) == 0 or len(tgt_indices) == 0:
+                        latencies[idx].append(self.cfg["max_latency"])
+                        quality_scores[idx].append(self.worst_score)
+                        continue
+                    src_sentence = src_sep.join([src_sentences[i] for i in src_indices])
+                    ref_sentence = tgt_sep.join([ref_sentences[i] for i in src_indices])
+                    ref_len = sum([len(ref_sentences[i].strip().split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentences[i]) for i in src_indices])
+                    tgt_sentence = tgt_sep.join([tgt_sentences[i] for i in tgt_indices])
+                    tgt_delay = [delay for i in tgt_indices for delay in tgt_delays[i]]
 
-                latency_data.append({
-                    "src_start": src_info[src_indices[0]]['start'],
-                    "src_end": src_info[src_indices[-1]]['end'],
-                    "ref_len": ref_len,
-                    "delays": tgt_delay,
-                })
+                    latency_data.append({
+                        "src_start": src_info[src_indices[0]]['start'],
+                        "src_end": src_info[src_indices[-1]]['end'],
+                        "ref_len": ref_len,
+                        "delays": tgt_delay,
+                    })
 
-                scorer_data.append({
-                    "src": src_sentence,
-                    "ref": ref_sentence,
-                    "mt": tgt_sentence,
-                })
-                instance2data.append(idx)
+                    scorer_data.append({
+                        "src": src_sentence,
+                        "ref": ref_sentence,
+                        "mt": tgt_sentence,
+                    })
+                    instance2data.append(idx)
+            elif self.cfg["segmentation"] == "mwersegmenter":
+                delays = data[idx]["delays"]
+                for j, tgt_sentence in enumerate(src_tgt_alignments):
+                    if tgt_sentence.strip() == "":
+                        latencies[idx].append(self.cfg["max_latency"])
+                        quality_scores[idx].append(self.worst_score)
+                        continue
+                    units = tgt_sentence.strip().split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(tgt_sentence)
+                    tgt_delay = delays[:len(units)]
+                    delays = delays[len(units):]
+
+                    latency_data.append({
+                        "src_start": src_info[j]['start'],
+                        "src_end": src_info[j]['end'],
+                        "ref_len": len(units),
+                        "delays": tgt_delay,
+                    })
+
+                    scorer_data.append({
+                        "src": src_sentences[j],
+                        "ref": ref_sentences[j],
+                        "mt": tgt_sentence.strip(),
+                    })
+                    instance2data.append(idx)
+            else:
+                raise ValueError(f"Invalid segmentation method: {self.cfg['segmentation']}")
         
         for i, latency_datum in enumerate(latency_data):
             start = latency_datum["src_start"]

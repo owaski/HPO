@@ -1,0 +1,58 @@
+Copyright 2005 RWTH Aachen University Lehtstuhl fuer Informatik VI.
+
+This software package is to be used for segmentation of unsegmented or improperly
+segmented translation hypotheses according to the segments defined in the
+multiple reference translations.
+
+The package contains:
+
+mwerSegmenter:         the C++ binary which performs the segmentation
+
+hyp2sgm.py
+sgm2mref.py :          two Python scripts to convert to/from SGML files
+
+normalizeTextNIST.pl:  a perl script which can perform text normalization which
+                       is used in NIST MT evaluations.
+
+segmentBasedOnMWER.sh: a bash shell script which performs segmentation and
+                       outputs a SGML file with proper segments.
+
+A short help is shown by all programs and scripts, when called with the -h
+option.
+
+To install the tools:
+
+1) put them all in a separate directory 
+2) edit the script segmentBasedOnMWER.sh manually and set the variable SCRIPTDIR
+to the global path to this directory
+   For example, export SCRIPTDIR=/usr/test/mwerSegmenter
+
+Note that the tools run only on Unix/Linux i686 machines and 
+require a recent installation of Perl and Python.
+
+To perform segmentation, run:
+
+./segmentBasedOnMWER.sh <parameters>
+
+The parameters are as follows:
+
+<source sgm file> <reference sgm file> <translation file> <sysid> <target language> <output sgm file> [normalize]
+
+
+<source sgm file>: the SGML file containing source segments/sentences (may have multiple docs)
+<reference sgm file>:  the (multiple) reference translations of the source SGML file
+<translation file>:    translation hypotheses for all of the original source segments 
+                       in plain text, without any XML tags. The order of translation must match
+                       the original order of the source segments. Any whitespace can be used
+                       to separate words. The newline symbols may define some implicit segmentation,
+                       but they will not be used by the algorithm.
+<sysid>:               ID of the system which produced the translation, i.e. RWTH-primary-1
+<target language>:     a name of the target language (e.g. English, Spanish)
+<output sgm file>:     the name of the output SGML file with segmented translation hypotheses. 
+                       This file can be directly used by all of the evaluation scripts.
+[normalize]:           an optional parameter. By writing "normalize" both the translation input
+                       and the references are normalized using the script normalizeTextNIST.pl.
+                       Normalization may improve the accuracy of segmentation. However,
+                       only case-insensitive evaluation will then be possible. 
+
+

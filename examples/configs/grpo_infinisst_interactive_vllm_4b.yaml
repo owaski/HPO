@@ -11,7 +11,7 @@ grpo:
   reduce_baseline_rewards: false
 
 policy:
-  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_4node/checkpoints/step=2000-last.ckpt.hf"
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_fix_de_4node/checkpoints/step=2000-last.ckpt.hf"
   train_global_batch_size: 32
   train_micro_batch_size: 1
   logprob_batch_size: 4
@@ -31,13 +31,13 @@ policy:
       gpu_memory_utilization: 0.6
 
 data:
-  train_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"
-  val_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_zh_blaser2.0-qe3.0_metricx-qe4.0_simalign/en_dev/manifest.parquet"
+  train_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_de_blaser2.0-qe3.0_metricx-qe4.0_simalign/en000/manifest.parquet"
+  val_data_file: "/data/asr/yodas/npy_4b_opt/parakeet-tdt-0.6b-v2_robust60-1120_langid_de_blaser2.0-qe3.0_metricx-qe4.0_simalign/en_dev/manifest.parquet"
   train_data_shuffle: true
   val_data_shuffle: false
   seed: 42
   src_lang: "en"
-  tgt_lang: "zh"
+  tgt_lang: "de"
   multiplier: 4
  
 env:
@@ -62,6 +62,7 @@ env:
       # scoring_model_type: "Unbabel/XCOMET-XL"
       # scoring_model_path: "/ckpts/llm/xcomet-xl"
       qe: false
+      segmentation: "mwersegmenter" # lcme or mwersegmenter
       alpha: 1.0
       beta: 0.5
       # target_latency: 2.8
