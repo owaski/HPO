@@ -361,9 +361,9 @@ class InfiniSSTScorer:
                 if paragraph.strip():
                     sentences = []
                     current_sentence = ""
-                    for char in paragraph:
+                    for pos, char in enumerate(paragraph):
                         current_sentence += char
-                        if char in self.sent_splitter:
+                        if char in self.sent_splitter and (pos == len(paragraph) - 1 or paragraph[pos + 1] == ' '):
                             if current_sentence.strip():
                                 current_sentence = current_sentence.strip()
                                 sentences.append(current_sentence)
@@ -438,7 +438,7 @@ class InfiniSSTScorer:
                     latency_data.append({
                         "src_start": src_info[j]['start'],
                         "src_end": src_info[j]['end'],
-                        "ref_len": len(units),
+                        "ref_len": len(ref_sentences[j].strip().split(' ')) if self.cfg["tgt_lang"] in WORD_LANGS else len(ref_sentences[j]),
                         "delays": tgt_delay,
                     })
 
@@ -666,13 +666,14 @@ class InfiniSSTEnv(EnvironmentInterface):
         scorer_data = []
         features_ids = []
         for idx, (message_log, metadata) in enumerate(zip(message_log_batch, metadata_batch)):
-            translation = ''.join([msg["content"] for msg in message_log if msg["role"] == "assistant"])
+            translation = ''.join([msg["content"] for msg in message_log if msg["role"] == "assistant"]) if self.cfg["tgt_lang"] in CHAR_LANGS else \
+                ' '.join([msg["content"].strip() for msg in message_log if msg["role"] == "assistant" and msg["content"].strip() != ''])
 
             delays = []
             n_chunks = 0
             for msg in message_log:
                 n_chunks += int(msg['role'] == 'user')
-                if msg['role'] == 'assistant' and msg['content'] != '':
+                if msg['role'] == 'assistant' and msg['content'].strip() != '':
                     units = msg['content'].strip().split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(msg['content'])
                     delays.extend([n_chunks * self.cfg["step_size"]] * len(units))
 
