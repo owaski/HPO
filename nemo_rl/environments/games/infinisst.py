@@ -194,6 +194,10 @@ class MwerSegmenter:
         """
         Segments the prediction based on the reference sentences using the edit distance algorithm.
         """
+
+        if prediction.strip() == "":
+            return [''] * len(reference_sentences)
+
         self.cnt += 1
         tmp_pred = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".{self.worker_id}.{self.cnt}")
         tmp_ref = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".{self.worker_id}.{self.cnt}")
@@ -209,6 +213,7 @@ class MwerSegmenter:
         tmp_ref.writelines(ref + '\n' for ref in reference_sentences)
         tmp_pred.flush()
         tmp_ref.flush()
+        
         subprocess.run([
             self.mwer_command,
             "-mref",
