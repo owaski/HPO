@@ -577,7 +577,7 @@ class InfiniSSTEnv(EnvironmentInterface):
             for msg in message_log:
                 n_chunks += int(msg['role'] == 'user')
                 if msg['role'] == 'assistant' and msg['content'] != '':
-                    units = msg['content'].split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(msg['content'])
+                    units = msg['content'].strip().split(' ') if self.cfg["tgt_lang"] in WORD_LANGS else list(msg['content'])
                     delays.extend([n_chunks * self.cfg["step_size"]] * len(units))
 
             features_id = str(abs(hash(f"{message_log[0]['features'][0]}-{message_log[0]['features'][1]}")))
