@@ -178,7 +178,9 @@ class MwerSegmenter:
     The tool can be downloaded at:
     https://www-i6.informatik.rwth-aachen.de/web/Software/mwerSegmenter.tar.gz
     """
-    def __init__(self, character_level=False):
+    def __init__(self, character_level=False, worker_id=0):
+        self.cnt = 0
+        self.worker_id = worker_id
         self.mwer_command = "mwerSegmenter"
         self.character_level = character_level
         if shutil.which(self.mwer_command) is None:
@@ -192,45 +194,47 @@ class MwerSegmenter:
         """
         Segments the prediction based on the reference sentences using the edit distance algorithm.
         """
-        tmp_pred = tempfile.NamedTemporaryFile(mode="w", delete=False)
-        tmp_ref = tempfile.NamedTemporaryFile(mode="w", delete=False)
+        self.cnt += 1
+        tmp_pred = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".{self.worker_id}.{self.cnt}")
+        tmp_ref = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".{self.worker_id}.{self.cnt}")
         # create a  temporary directory where mwerSegmenter writes the segments
         # so that multiple parallel runs of stream_laal do not conflict
-        tmp_dir = tempfile.mkdtemp()
+        tmp_dir = tempfile.mkdtemp(suffix=f".{self.worker_id}.{self.cnt}")
         if self.character_level:
             # If character-level evaluation, add spaces for resegmentation
             prediction = " ".join(prediction)
             reference_sentences = [" ".join(reference) for reference in reference_sentences]
-        try:
-            tmp_pred.write(prediction)
-            tmp_ref.writelines(ref + '\n' for ref in reference_sentences)
-            tmp_pred.flush()
-            tmp_ref.flush()
-            subprocess.run([
-                self.mwer_command,
-                "-mref",
-                tmp_ref.name,
-                "-hypfile",
-                tmp_pred.name,
-                "-usecase",
-                "1"], cwd=tmp_dir)
-            # mwerSegmenter writes into the __segments file in the temporary directory. 
-            segments_file = os.path.join(tmp_dir, "__segments")
-            with open(segments_file, "r") as f:
-                segments = []
-                for line in f.readlines():
-                    if self.character_level:
-                        # If character-level evaluation, remove only spaces between characters
-                        line = re.sub(r'(.)\s', r'\1', line)
-                    segments.append(line.strip())
-                return segments
-        finally:
-            tmp_pred.close()
-            tmp_ref.close()
-            os.unlink(tmp_pred.name)
-            os.unlink(tmp_ref.name)
-            os.unlink(segments_file)
-            os.rmdir(tmp_dir)
+        
+        tmp_pred.write(prediction)
+        tmp_ref.writelines(ref + '\n' for ref in reference_sentences)
+        tmp_pred.flush()
+        tmp_ref.flush()
+        subprocess.run([
+            self.mwer_command,
+            "-mref",
+            tmp_ref.name,
+            "-hypfile",
+            tmp_pred.name,
+            "-usecase",
+            "1"], cwd=tmp_dir)
+        # mwerSegmenter writes into the __segments file in the temporary directory. 
+        segments_file = os.path.join(tmp_dir, "__segments")
+        with open(segments_file, "r") as f:
+            segments = []
+            for line in f.readlines():
+                if self.character_level:
+                    # If character-level evaluation, remove only spaces between characters
+                    line = re.sub(r'(.)\s', r'\1', line)
+                segments.append(line.strip())
+        
+        tmp_pred.close()
+        tmp_ref.close()
+        os.unlink(tmp_pred.name)
+        os.unlink(tmp_ref.name)
+        os.unlink(segments_file)
+        os.rmdir(tmp_dir)
+
+        return segments
 
     def segment(self, data: list[dict[str, str]]) -> list[str]:
         return [self(instance["tgt_text"], instance["ref_sents"]) for instance in data]
@@ -280,11 +284,11 @@ class RewardModel:
 
 @ray.remote
 class InfiniSSTScorer:
-    def __init__(self, cfg: InfiniSSTConfig):
+    def __init__(self, cfg: InfiniSSTConfig, worker_id: int):
         self.cfg = cfg
         self.sent_splitter = SENT_SPLITTERS[cfg["tgt_lang"]]
         self.segmenter = LCME(cfg) if cfg.get("segmenter", "lcme") == "lcme" else \
-            MwerSegmenter(character_level=cfg["tgt_lang"] in CHAR_LANGS)
+            MwerSegmenter(character_level=cfg["tgt_lang"] in CHAR_LANGS, worker_id=worker_id)
 
         if 'comet' in cfg["scoring_model_type"].lower():
             from comet import download_model, load_from_checkpoint
@@ -647,7 +651,7 @@ class InfiniSSTEnv(EnvironmentInterface):
                 scheduling_strategy=ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy(
                     placement_group=pg
                 )
-            ).remote(cfg)
+            ).remote(cfg, i)
             self.workers.append(worker)
             
             # Wait for the worker to be fully initialized before creating the next one
