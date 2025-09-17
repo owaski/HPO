@@ -112,20 +112,17 @@ env:
   infinisst:
     cfg:
       max_turns: ${grpo.max_rollout_turns}
-      model_name: ${policy.model_name}
-      scoring_model_type: "google/metricx-24-hybrid-xxl-v2p6-bfloat16"
-      scoring_model_path: "/ckpts/llm/metricx-24-hybrid-xxl-v2p6-bfloat16"
-      scoring_tokenizer_path: "/ckpts/llm/mt5-xl"
+      model_name: ${policy.model_name}      
+      scoring_model_type: "Unbabel/XCOMET-XXL"
+      scoring_model_path: "/ckpts/llm/xcomet-xxl"
       qe: false
       batch_size: 32
       src_lang: ${data.src_lang}
       tgt_lang: ${data.tgt_lang}
       step_size: 1.12
       alpha: 1.0
-      beta: 0.5
+      beta: 0.0
       max_latency: 10.0
-      target_quality: -5.0
-      hinge_granularity: "sentence"
       normalize: true
       num_gpus: 8
 
@@ -135,8 +132,8 @@ cluster:
 
 checkpointing:
   enabled: true
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0"
-  metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-xcomet"
+  metric_name: "val_Unbabel/XCOMET-XXL"
   higher_is_better: true
   keep_top_k: 3
   save_period: 10
@@ -149,7 +146,7 @@ logger:
   monitor_gpus: true  # If true, will monitor GPU usage and log to wandb and/or tensorboard
   wandb:
     project: "infinisst-rl"
-    name: grpo-4b-metricx-laal_0.5-as-tgtq_-5.0
+    name: grpo-4b-xcomet
   tensorboard: {}
   gpu_monitoring:
     collection_interval: 10  # How often to collect GPU usage metrics (in seconds)

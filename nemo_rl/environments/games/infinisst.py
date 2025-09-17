@@ -48,6 +48,7 @@ class InfiniSSTMetadata(TypedDict):
 SENT_SPLITTERS = {
     "en": '.,!?',
     "ru": '.,!?',
+    'de': '.,!?',
     "zh": '。，！？',
 }
 
@@ -493,8 +494,8 @@ class InfiniSSTScorer:
         mean_quality_scores = [sum(score_list) / len(score_list) for score_list in quality_scores]
         mean_latencies = [sum(latency_list) / len(latency_list) for latency_list in latencies]
 
-        hinged_latencies = copy.deepcopy(latencies)
         if self.cfg.get("target_quality", None) is not None:
+            hinged_latencies = copy.deepcopy(latencies)
             target_quality = self.cfg["target_quality"]
             hinge_granularity = self.cfg.get("hinge_granularity", "sentence")
             if hinge_granularity == "sentence":
@@ -513,6 +514,8 @@ class InfiniSSTScorer:
                 ]
             else:
                 raise ValueError(f"Invalid hinge granularity: {self.cfg['hinge_granularity']}")
+        else:
+            mean_hinged_latencies = mean_latencies
 
         scores = [
             {

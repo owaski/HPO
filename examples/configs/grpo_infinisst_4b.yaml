@@ -133,7 +133,7 @@ cluster:
 
 checkpointing:
   enabled: true
-  checkpoint_dir: "results/grpo-4b-metricx"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx"
   metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
   higher_is_better: true
   keep_top_k: 3

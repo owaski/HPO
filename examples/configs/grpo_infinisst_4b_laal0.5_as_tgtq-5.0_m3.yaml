@@ -2,7 +2,7 @@
 grpo:
   num_prompts_per_step: 32
   num_generations_per_prompt: 16
-  max_rollout_turns: 60 # Maximum turns allowed per rollout
+  max_rollout_turns: 20 # Maximum turns allowed per rollout
   max_num_steps: 10000
   reduce_baseline_rewards: false
   normalize_rewards: false
@@ -75,7 +75,7 @@ policy:
 
   generation:
     backend: "vllm"
-    max_new_tokens: 40
+    max_new_tokens: 160
     temperature: 1.0
     top_p: 0.999
     top_k: 10000
@@ -107,6 +107,7 @@ data:
   seed: 42
   src_lang: "en"
   tgt_lang: "zh"
+  multiplier: 3
  
 env:
   infinisst:
@@ -120,7 +121,7 @@ env:
       batch_size: 32
       src_lang: ${data.src_lang}
       tgt_lang: ${data.tgt_lang}
-      step_size: 1.12
+      step_size: 3.36
       alpha: 1.0
       beta: 0.5
       max_latency: 10.0
@@ -135,7 +136,7 @@ cluster:
 
 checkpointing:
   enabled: true
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m3"
   metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
   higher_is_better: true
   keep_top_k: 3
@@ -149,7 +150,7 @@ logger:
   monitor_gpus: true  # If true, will monitor GPU usage and log to wandb and/or tensorboard
   wandb:
     project: "infinisst-rl"
-    name: grpo-4b-metricx-laal_0.5-as-tgtq_-5.0
+    name: grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m3
   tensorboard: {}
   gpu_monitoring:
     collection_interval: 10  # How often to collect GPU usage metrics (in seconds)
