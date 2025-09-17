@@ -283,7 +283,8 @@ class InfiniSSTScorer:
     def __init__(self, cfg: InfiniSSTConfig):
         self.cfg = cfg
         self.sent_splitter = SENT_SPLITTERS[cfg["tgt_lang"]]
-        self.segmenter = LCME(cfg) if cfg["segmentation"] == "lcme" else MwerSegmenter(character_level=cfg["tgt_lang"] in CHAR_LANGS)
+        self.segmenter = LCME(cfg) if cfg.get("segmenter", "lcme") == "lcme" else \
+            MwerSegmenter(character_level=cfg["tgt_lang"] in CHAR_LANGS)
 
         if 'comet' in cfg["scoring_model_type"].lower():
             from comet import download_model, load_from_checkpoint
@@ -396,7 +397,7 @@ class InfiniSSTScorer:
             src_info = data[idx]["src_info"]
             ref_sentences = data[idx]["ref_sents"]   
 
-            if self.cfg["segmentation"] == "lcme":
+            if self.cfg.get("segmenter", "lcme") == "lcme":
                 tgt_sentences = data[idx]["tgt_sents"]
                 tgt_delays = data[idx]["tgt_delays"]  
                 for src_indices, tgt_indices in src_tgt_alignments:
@@ -423,7 +424,7 @@ class InfiniSSTScorer:
                         "mt": tgt_sentence,
                     })
                     instance2data.append(idx)
-            elif self.cfg["segmentation"] == "mwersegmenter":
+            elif self.cfg.get("segmenter", "lcme") == "mwersegmenter":
                 delays = data[idx]["delays"]
                 for j, tgt_sentence in enumerate(src_tgt_alignments):
                     if tgt_sentence.strip() == "":
@@ -448,7 +449,7 @@ class InfiniSSTScorer:
                     })
                     instance2data.append(idx)
             else:
-                raise ValueError(f"Invalid segmentation method: {self.cfg['segmentation']}")
+                raise ValueError(f"Invalid segmentation method: {self.cfg.get('segmenter', 'lcme')}")
         
         for i, latency_datum in enumerate(latency_data):
             start = latency_datum["src_start"]
