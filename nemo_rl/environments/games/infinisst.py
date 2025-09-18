@@ -387,7 +387,7 @@ class InfiniSSTScorer:
                     current_sentence = ""
                     for pos, char in enumerate(paragraph):
                         current_sentence += char
-                        if char in self.sent_splitter and (pos == len(paragraph) - 1 or paragraph[pos + 1] == ' '):
+                        if char in self.sent_splitter and (pos == len(paragraph) - 1 or paragraph[pos + 1] not in self.sent_splitter):
                             if current_sentence.strip():
                                 current_sentence = current_sentence.strip()
                                 sentences.append(current_sentence)
@@ -721,7 +721,7 @@ class InfiniSSTEnv(EnvironmentInterface):
         metrics = {
             key: [score[key] for score in scores] for key in keys
         }
-
+        
         quality_scores = np.array(metrics[self.cfg["scoring_model_type"]])
         hinged_latencies = np.array(metrics["hinged_latency"])
         features_ids = np.array(features_ids)
