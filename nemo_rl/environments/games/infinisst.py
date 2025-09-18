@@ -387,7 +387,11 @@ class InfiniSSTScorer:
                     current_sentence = ""
                     for pos, char in enumerate(paragraph):
                         current_sentence += char
-                        if char in self.sent_splitter and (pos == len(paragraph) - 1 or paragraph[pos + 1] not in self.sent_splitter):
+                        if char in self.sent_splitter and (
+                            pos == len(paragraph) - 1 or \
+                            (self.cfg["tgt_lang"] in CHAR_LANGS and paragraph[pos + 1] not in self.sent_splitter) or \
+                            (self.cfg["tgt_lang"] in WORD_LANGS and paragraph[pos + 1] == ' ')
+                        ):
                             if current_sentence.strip():
                                 current_sentence = current_sentence.strip()
                                 sentences.append(current_sentence)
