@@ -214,23 +214,38 @@ class MwerSegmenter:
         tmp_pred.flush()
         tmp_ref.flush()
         
-        subprocess.run([
-            self.mwer_command,
-            "-mref",
-            tmp_ref.name,
-            "-hypfile",
-            tmp_pred.name,
-            "-usecase",
-            "1"], cwd=tmp_dir)
-        # mwerSegmenter writes into the __segments file in the temporary directory. 
-        segments_file = os.path.join(tmp_dir, "__segments")
-        with open(segments_file, "r") as f:
-            segments = []
-            for line in f.readlines():
-                if self.character_level:
-                    # If character-level evaluation, remove only spaces between characters
-                    line = re.sub(r'(.)\s', r'\1', line)
-                segments.append(line.strip())
+        for idx in range(100):
+            subprocess.run([
+                self.mwer_command,
+                "-mref",
+                tmp_ref.name,
+                "-hypfile",
+                tmp_pred.name,
+                "-usecase",
+                "1"], cwd=tmp_dir)
+            # mwerSegmenter writes into the __segments file in the temporary directory. 
+            segments_file = os.path.join(tmp_dir, "__segments")
+            if os.path.exists(segments_file):
+                with open(segments_file, "r") as f:
+                    segments = []
+                    for line in f.readlines():
+                        if self.character_level:
+                            # If character-level evaluation, remove only spaces between characters
+                            line = re.sub(r'(.)\s', r'\1', line)
+                        segments.append(line.strip())
+                break
+            else:
+                print('prediction', prediction)
+                print('reference_sentences', reference_sentences)
+                print(f"Retrying {idx} times")
+                
+        # except Exception as e:
+        #     print(e)
+        #     print('=' * 100)
+        #     print('prediction', prediction)
+        #     print('reference_sentences', reference_sentences)
+        #     print('=' * 100)
+        #     raise e
         
         tmp_pred.close()
         tmp_ref.close()
