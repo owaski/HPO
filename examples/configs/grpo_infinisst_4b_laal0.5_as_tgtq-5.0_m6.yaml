@@ -23,7 +23,7 @@ loss_fn:
   token_level_loss: true
 
 policy:
-  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_4node/checkpoints/step=2000-last.ckpt.hf"
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_fix_4node/checkpoints/step=2000-last.ckpt.hf"
   # model_name: "/ckpts/llm/qwen2.5-0.5b-instruct"
   tokenizer:
     name: ${policy.model_name} ## specify if you'd like to use a tokenizer different from the model's default
@@ -136,7 +136,7 @@ cluster:
 
 checkpointing:
   enabled: true
-  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m6"
+  checkpoint_dir: "/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m6-fix"
   metric_name: "val_google/metricx-24-hybrid-xxl-v2p6-bfloat16"
   higher_is_better: true
   keep_top_k: 3
@@ -150,7 +150,7 @@ logger:
   monitor_gpus: true  # If true, will monitor GPU usage and log to wandb and/or tensorboard
   wandb:
     project: "infinisst-rl"
-    name: grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m6
+    name: grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-m6-fix
   tensorboard: {}
   gpu_monitoring:
     collection_interval: 10  # How often to collect GPU usage metrics (in seconds)
