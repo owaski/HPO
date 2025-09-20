@@ -745,6 +745,9 @@ class InfiniSSTEnv(EnvironmentInterface):
                 if std_latencies > 0:
                     hinged_latencies[mask] = hinged_latencies[mask] / std_latencies
 
+                if self.cfg.get("seqpo", False):
+                    hinged_latencies = np.maximum(hinged_latencies, self.cfg["step_size"])
+
         rewards = self.cfg["alpha"] * quality_scores - self.cfg["beta"] * hinged_latencies
 
         return rewards, metrics
