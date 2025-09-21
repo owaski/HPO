@@ -52,6 +52,7 @@ SENT_SPLITTERS = {
     "ru": '.,!?',
     'de': '.,!?',
     "zh": '。，！？',
+    "ja": '。，！？',
 }
 
 CHAR_LANGS = set(['zh', 'ja'])
@@ -746,7 +747,7 @@ class InfiniSSTEnv(EnvironmentInterface):
                     hinged_latencies[mask] = hinged_latencies[mask] / std_latencies
 
                 if self.cfg.get("seqpo", False):
-                    hinged_latencies = np.maximum(hinged_latencies, self.cfg["step_size"])
+                    hinged_latencies = np.maximum(hinged_latencies, self.cfg["step_size"] / 2)
 
         rewards = self.cfg["alpha"] * quality_scores - self.cfg["beta"] * hinged_latencies
 
