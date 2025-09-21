@@ -23,7 +23,7 @@ loss_fn:
   token_level_loss: true
 
 policy:
-  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_4node/checkpoints/step=2000-last.ckpt.hf"
+  model_name: "/ckpts/infinisst/yodas_5kh_v2_m12_stage2_4b_8k_4e-5_fix_4node/checkpoints/step=2000-last.ckpt.hf"
   # model_name: "/ckpts/llm/qwen2.5-0.5b-instruct"
   tokenizer:
     name: ${policy.model_name} ## specify if you'd like to use a tokenizer different from the model's default

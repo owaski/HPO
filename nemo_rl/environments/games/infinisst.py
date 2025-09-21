@@ -215,30 +215,30 @@ class MwerSegmenter:
         tmp_pred.flush()
         tmp_ref.flush()
         
-        for idx in range(100):
-            subprocess.run([
-                self.mwer_command,
-                "-mref",
-                tmp_ref.name,
-                "-hypfile",
-                tmp_pred.name,
-                "-usecase",
-                "1"], cwd=tmp_dir)
-            # mwerSegmenter writes into the __segments file in the temporary directory. 
-            segments_file = os.path.join(tmp_dir, "__segments")
-            if os.path.exists(segments_file):
-                with open(segments_file, "r") as f:
-                    segments = []
-                    for line in f.readlines():
-                        if self.character_level:
-                            # If character-level evaluation, remove only spaces between characters
-                            line = re.sub(r'(.)\s', r'\1', line)
-                        segments.append(line.strip())
-                break
-            else:
-                print('prediction', prediction)
-                print('reference_sentences', reference_sentences)
-                print(f"Retrying {idx} times")
+        subprocess.run([
+            self.mwer_command,
+            "-mref",
+            tmp_ref.name,
+            "-hypfile",
+            tmp_pred.name,
+            "-usecase",
+            "1"], cwd=tmp_dir)
+        # mwerSegmenter writes into the __segments file in the temporary directory. 
+        segments_file = os.path.join(tmp_dir, "__segments")
+        if os.path.exists(segments_file):
+            with open(segments_file, "r") as f:
+                segments = []
+                for line in f.readlines():
+                    if self.character_level:
+                        # If character-level evaluation, remove only spaces between characters
+                        line = re.sub(r'(.)\s', r'\1', line)
+                    segments.append(line.strip())
+        else:
+            segments = [''] * len(reference_sentences)
+            print('=' * 100)
+            print('prediction', prediction)
+            print('reference_sentences', reference_sentences)
+            print('=' * 100)
                 
         # except Exception as e:
         #     print(e)
@@ -252,7 +252,8 @@ class MwerSegmenter:
         tmp_ref.close()
         os.unlink(tmp_pred.name)
         os.unlink(tmp_ref.name)
-        os.unlink(segments_file)
+        if os.path.exists(segments_file):
+            os.unlink(segments_file)
         os.rmdir(tmp_dir)
 
         return segments
