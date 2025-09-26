@@ -1,3 +1,5 @@
+# bash docker_sbatch_3node.sh grpo_infinisst_4b_laal0.5_as_tgtq-5.0 checkpointing.checkpoint_dir=/ckpts/infinisst-rl/grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-fix-run3 logger.wandb.name=grpo-4b-metricx-laal_0.5-as-tgtq_-5.0-fix-run3
+
 ROOT=/lustre/fsw/portfolios/llmservice/users/souyang
 
 CONTAINER_PATH=$ROOT/images/nemo_rl_npy.sqsh
@@ -9,19 +11,23 @@ HF_CACHE_DIR=$ROOT/.cache/huggingface
 NUM_ACTOR_NODES=3  # Total nodes requested (head is colocated on ray-worker-0)
 
 CONFIG_NAME=$1
+# Capture all additional arguments after the first one
+shift
+ADDITIONAL_ARGS="$@"
 N=5
 
 HF_TOKEN=$(cat $ROOT/.keys/hf_token)
 WANDB_API_KEY=$(cat $ROOT/.keys/wandb_api_key)
 
-JOB_NAME="${CONFIG_NAME}"
+RAND_SUFFIX=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 4 | head -n 1)
+JOB_NAME="${CONFIG_NAME}_${RAND_SUFFIX}"
 
 ACCOUNT=llmservice_nemo_reasoning
 # ACCOUNT=convai_convaird_nemo-speech
 
 for i in $(seq 1 ${N}); do
     # COMMAND="NRL_VLLM_USE_V1=0 PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config ${CONFIG_NAME}" \
-    COMMAND="TOKENIZERS_PARALLELISM=false PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config /code/RL/examples/configs/${CONFIG_NAME}.yaml" \
+    COMMAND="TOKENIZERS_PARALLELISM=false PYTHONPATH=/code/RL:$PYTHONPATH uv run ./examples/run_grpo_infinisst.py --config /code/RL/examples/configs/${CONFIG_NAME}.yaml ${ADDITIONAL_ARGS}" \
     MOUNTS="/lustre/fsw:/lustre/fsw,${CODE_DIR}:/code,${CKPTS_DIR}:/ckpts,${DATA_DIR}:/data" \
     CONTAINER=${CONTAINER_PATH} \
     HF_TOKEN=${HF_TOKEN} \
