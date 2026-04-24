@@ -3,7 +3,7 @@
 This is the repo for ACL 2026 paper "Hierarchical Policy Optimization for Simultaneous Translation of Unbounded Speech". 
 It only contains the RL post-training part. For SFT, please refer to [InfiniSST](https://github.com/LeiLiLab/InfiniSST) repo. 
 
-## How to run it? 
+## How to run the HPO training? 
 
 We provide slurm script to run it on 3 8xH100 nodes. 
 ```bash
@@ -25,4 +25,4 @@ For En-Ja
 
 Running this requires the SFT model checkpoint, the speech data pre-encoded into features with the speech encoder, and a docker container. 
 
-Since it is the work I did during my NVIDIA internship, I need to get permissions from them before releasing the artifacts. Stay tuned. 
+We provide the example SFT checkpoint for en-zh [here](https://drive.google.com/file/d/13lR1f2f_UJejQ6CjF7mrEi7waEnQ_dRL/view?usp=sharing), and the example pre-encoded data [here](https://drive.google.com/file/d/1L4QYMuFaQnCoYUqnq4PhL7X_wH2ecfZT/view?usp=sharing) and the docker image [here](https://drive.google.com/file/d/1xI7rT4pCuvNaA5rIFMUuuzUn4oeVgQxb/view?usp=sharing). 
