@@ -25,4 +25,4 @@ For En-Ja
 
 Running this requires the SFT model checkpoint, the speech data pre-encoded into features with the speech encoder, and a docker container. 
 
-We provide the example SFT checkpoint for en-zh [here](https://drive.google.com/file/d/13lR1f2f_UJejQ6CjF7mrEi7waEnQ_dRL/view?usp=sharing), and the example pre-encoded data [here](https://drive.google.com/file/d/1L4QYMuFaQnCoYUqnq4PhL7X_wH2ecfZT/view?usp=sharing) and the docker image [here](https://drive.google.com/file/d/1xI7rT4pCuvNaA5rIFMUuuzUn4oeVgQxb/view?usp=sharing). 
+We provide the example SFT checkpoint for en-zh [[here](https://drive.google.com/file/d/13lR1f2f_UJejQ6CjF7mrEi7waEnQ_dRL/view?usp=sharing)], and the example pre-encoded data [[manifest](https://drive.google.com/file/d/1SonY83rcRP8TyugRacmrbzTMi5biC7et/view?usp=sharing)] [[encoded feature](https://drive.google.com/file/d/1L4QYMuFaQnCoYUqnq4PhL7X_wH2ecfZT/view?usp=sharing)] and the docker image [[here](https://drive.google.com/file/d/1xI7rT4pCuvNaA5rIFMUuuzUn4oeVgQxb/view?usp=sharing)]. 
